@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAudioEnabled, type StereoAnalysers } from './audio';
 import { HlsPlayer, type HlsState } from './HlsPlayer';
+import { Meter } from './Meter';
 import { PLATFORM_LABEL, parseSource } from './sources';
 
 interface Props {
@@ -25,6 +27,8 @@ const STATUS_TEXT: Record<Status, string> = {
 export function Tile({ index, label, url, muted, onToggleAudio }: Props) {
   const source = useMemo(() => parseSource(url), [url]);
   const [hlsState, setHlsState] = useState<HlsState>('loading');
+  const [analysers, setAnalysers] = useState<StereoAnalysers | null>(null);
+  const audioEnabled = useAudioEnabled();
   const tileRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -101,7 +105,21 @@ export function Tile({ index, label, url, muted, onToggleAudio }: Props) {
           />
         )}
         {source.kind === 'hls' && (
-          <HlsPlayer src={source.manifestUrl} muted={muted} onState={setHlsState} />
+          <HlsPlayer
+            src={source.manifestUrl}
+            muted={muted}
+            onState={setHlsState}
+            onAnalysers={setAnalysers}
+          />
+        )}
+        {source.kind === 'hls' && (
+          <Meter
+            analysers={analysers}
+            note={audioEnabled ? undefined : 'Click anywhere to turn on audio meters'}
+          />
+        )}
+        {source.kind === 'iframe' && (
+          <Meter analysers={null} note={`No meter: ${PLATFORM_LABEL[source.platform]} embeds hide their audio`} />
         )}
         {source.kind === 'unsupported' && (
           <div className="tile-message">

@@ -19,6 +19,12 @@ The stream list and box layout are saved on the server in `/config/wall.json`.
 
 Every box starts muted; press the speaker on one box to listen to it. Double-click the top bar for full screen.
 
+### Audio meters
+
+Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so the viewer shows **Click to turn on audio and meters** until then. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
+
+YouTube, Facebook and Kaltura iframe embeds keep their audio inside the embed where the page cannot read it, so their meters stay greyed out. Metering those needs the server to pull the stream itself (Phase 3).
+
 Embedded players (YouTube, Facebook, Kaltura iframe) only show *Embed* as their status: the page cannot see inside them. Real live status for those arrives in Phase 2.
 
 ### Bulk import format

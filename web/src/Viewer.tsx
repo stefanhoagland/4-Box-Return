@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { enableAudio, useAudioEnabled } from './audio';
 import { Tile } from './Tile';
 import { useClock } from './useClock';
 import { BOX_COUNT, emptyWall, followWall, streamInBox, type Wall } from './wall';
@@ -10,6 +11,19 @@ export function Viewer() {
   const [online, setOnline] = useState(true);
   const [audioBox, setAudioBox] = useState<number | null>(null);
   const now = useClock();
+  const audioEnabled = useAudioEnabled();
+
+  // Browsers block sound and audio analysis until the first click or key press.
+  useEffect(() => {
+    if (audioEnabled) return;
+    const enable = () => void enableAudio();
+    window.addEventListener('pointerdown', enable, { once: true });
+    window.addEventListener('keydown', enable, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', enable);
+      window.removeEventListener('keydown', enable);
+    };
+  }, [audioEnabled]);
 
   useEffect(() => followWall(setWall, setOnline), []);
   useEffect(() => {
@@ -26,6 +40,11 @@ export function Viewer() {
       <header className="topbar" onDoubleClick={toggleFullscreen}>
         <h1>{wall.title}</h1>
         {!online && <span className="offline">Reconnecting to server…</span>}
+        {!audioEnabled && (
+          <button className="audio-enable" onClick={() => void enableAudio()}>
+            Click to turn on audio and meters
+          </button>
+        )}
         <time className="clock" dateTime={now.toISOString()}>
           {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </time>
