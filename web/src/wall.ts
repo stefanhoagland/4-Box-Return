@@ -40,18 +40,42 @@ export async function saveWall(wall: Wall): Promise<Wall> {
   return res.json();
 }
 
-// Calls onWall with the current wall and again after every admin save.
-export function followWall(onWall: (wall: Wall) => void, onOnline: (online: boolean) => void): () => void {
+export type Levels = [number, number];
+
+export interface RelayStatus {
+  state: 'starting' | 'running' | 'error';
+  kind: 'meter' | 'play';
+  message: string;
+  hls?: string;
+}
+
+export interface WallFollower {
+  onWall: (wall: Wall) => void;
+  onOnline: (online: boolean) => void;
+  // Server-measured audio levels per box, about ten times a second.
+  onLevels?: (levels: Record<number, Levels | null>) => void;
+  onRelay?: (box: number, status: RelayStatus | null) => void;
+}
+
+// Follows the wall and the server relay over one Server-Sent Events stream.
+export function followWall(f: WallFollower): () => void {
   const events = new EventSource('/api/events');
-  events.onmessage = (e) => {
-    onOnline(true);
+  const parse = <T,>(e: MessageEvent, use: (v: T) => void) => {
     try {
-      onWall(JSON.parse(e.data));
+      use(JSON.parse(e.data));
     } catch {
       // Ignore a malformed message; the next one replaces it.
     }
   };
-  events.onerror = () => onOnline(false);
+  events.onmessage = (e) => {
+    f.onOnline(true);
+    parse(e, f.onWall);
+  };
+  events.addEventListener('levels', (e) => parse(e as MessageEvent, (v: Record<number, Levels | null>) => f.onLevels?.(v)));
+  events.addEventListener('relay', (e) =>
+    parse(e as MessageEvent, (v: { box: number; status: RelayStatus | null }) => f.onRelay?.(v.box, v.status)),
+  );
+  events.onerror = () => f.onOnline(false);
   return () => events.close();
 }
 

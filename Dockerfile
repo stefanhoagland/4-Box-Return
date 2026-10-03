@@ -9,6 +9,12 @@ COPY web/ ./
 RUN npm run build
 
 FROM node:22-alpine
+# ffmpeg and yt-dlp power the server relay (meters for YouTube/Facebook, X playback).
+# yt-dlp uses Node as its JavaScript runtime for YouTube.
+RUN apk add --no-cache ffmpeg python3 \
+ && python3 -m venv /opt/yt-dlp \
+ && /opt/yt-dlp/bin/pip install --no-cache-dir yt-dlp yt-dlp-ejs \
+ && ln -s /opt/yt-dlp/bin/yt-dlp /usr/local/bin/yt-dlp
 ENV NODE_ENV=production PORT=8080 CONFIG_DIR=/config STATIC_DIR=/app/public
 WORKDIR /app
 COPY server/package.json server/*.mjs ./

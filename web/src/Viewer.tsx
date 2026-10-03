@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { enableAudio, useAudioEnabled } from './audio';
 import { Tile } from './Tile';
 import { useClock } from './useClock';
-import { BOX_COUNT, emptyWall, followWall, streamInBox, type Wall } from './wall';
+import { BOX_COUNT, emptyWall, followWall, streamInBox, type Levels, type RelayStatus, type Wall } from './wall';
 
 // The wall screen: four boxes and a clock. Everything is set on the admin
 // page and arrives here live.
@@ -10,6 +10,8 @@ export function Viewer() {
   const [wall, setWall] = useState<Wall>(emptyWall);
   const [online, setOnline] = useState(true);
   const [audioBox, setAudioBox] = useState<number | null>(null);
+  const [levels, setLevels] = useState<Record<number, Levels | null>>({});
+  const [relays, setRelays] = useState<Record<number, RelayStatus | null>>({});
   const now = useClock();
   const audioEnabled = useAudioEnabled();
 
@@ -25,7 +27,16 @@ export function Viewer() {
     };
   }, [audioEnabled]);
 
-  useEffect(() => followWall(setWall, setOnline), []);
+  useEffect(
+    () =>
+      followWall({
+        onWall: setWall,
+        onOnline: setOnline,
+        onLevels: setLevels,
+        onRelay: (box, status) => setRelays((r) => ({ ...r, [box]: status })),
+      }),
+    [],
+  );
   useEffect(() => {
     document.title = wall.title;
   }, [wall.title]);
@@ -59,6 +70,8 @@ export function Viewer() {
               label={stream?.name ?? `Box ${i + 1}`}
               url={stream?.url ?? ''}
               muted={audioBox !== i}
+              serverLevels={levels[i] ?? null}
+              relay={relays[i] ?? null}
               onToggleAudio={() => setAudioBox((a) => (a === i ? null : i))}
             />
           );
