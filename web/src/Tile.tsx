@@ -3,6 +3,7 @@ import { useAudioEnabled, type StereoAnalysers } from './audio';
 import { HlsPlayer, type HlsState } from './HlsPlayer';
 import { Meter } from './Meter';
 import { PLATFORM_LABEL, parseSource } from './sources';
+import type { Levels, RelayStatus } from './wall';
 
 interface Props {
   index: number;
@@ -10,6 +11,9 @@ interface Props {
   url: string;
   muted: boolean;
   onToggleAudio: () => void;
+  // From the server relay, for links the browser cannot read itself.
+  serverLevels?: Levels | null;
+  relay?: RelayStatus | null;
 }
 
 type Status = HlsState | 'embed' | 'unsupported' | 'none';
@@ -24,8 +28,17 @@ const STATUS_TEXT: Record<Status, string> = {
   none: 'Empty',
 };
 
-export function Tile({ index, label, url, muted, onToggleAudio }: Props) {
-  const source = useMemo(() => parseSource(url), [url]);
+export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = null, relay = null }: Props) {
+  const parsed = useMemo(() => parseSource(url), [url]);
+  // X broadcasts cannot be embedded; once the server relay has them, they play as HLS.
+  const relayHls = relay?.kind === 'play' && relay.state === 'running' ? relay.hls : undefined;
+  const source = useMemo(
+    () =>
+      relayHls && parsed.kind === 'unsupported'
+        ? { kind: 'hls' as const, platform: parsed.platform, manifestUrl: relayHls, openUrl: parsed.openUrl }
+        : parsed,
+    [parsed, relayHls],
+  );
   const [hlsState, setHlsState] = useState<HlsState>('loading');
   const [analysers, setAnalysers] = useState<StereoAnalysers | null>(null);
   const audioEnabled = useAudioEnabled();
@@ -115,15 +128,34 @@ export function Tile({ index, label, url, muted, onToggleAudio }: Props) {
         {source.kind === 'hls' && (
           <Meter
             analysers={analysers}
-            note={audioEnabled ? undefined : 'Click anywhere to turn on audio meters'}
+            levels={analysers ? null : serverLevels}
+            note={audioEnabled || serverLevels ? undefined : 'Click anywhere to turn on audio meters'}
           />
         )}
         {source.kind === 'iframe' && (
-          <Meter analysers={null} note={`No meter: ${PLATFORM_LABEL[source.platform]} embeds hide their audio`} />
+          <Meter
+            analysers={null}
+            levels={serverLevels}
+            note={
+              serverLevels
+                ? 'Audio level measured by the server'
+                : relay?.state === 'error'
+                  ? `No meter: ${relay.message}`
+                  : relay
+                    ? 'Meter starting on the server…'
+                    : `No meter for ${PLATFORM_LABEL[source.platform]} embeds`
+            }
+          />
         )}
         {source.kind === 'unsupported' && (
           <div className="tile-message">
-            <p>{source.reason}</p>
+            <p>
+              {relay?.kind === 'play' && relay.state === 'starting'
+                ? 'Connecting through the server…'
+                : relay?.kind === 'play' && relay.state === 'error'
+                  ? `Server could not pull this stream: ${relay.message}. Retrying.`
+                  : source.reason}
+            </p>
             <a href={source.openUrl} target="_blank" rel="noreferrer">
               Open stream in a new tab
             </a>

@@ -5,6 +5,8 @@
 //   CONFIG_DIR      where wall.json is kept (default /config)
 //   STATIC_DIR      built web app (default ./public)
 //   ADMIN_PASSWORD  if set, /admin and saving require this password (user name: admin)
+//   RELAY           set to "off" to stop the server pulling YouTube/Facebook/X streams
+//   YTDLP_BIN, FFMPEG_BIN  paths to yt-dlp and ffmpeg (default: found on PATH)
 
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -12,6 +14,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { RELAY_DIR, RelayManager } from './relay.mjs';
 import { WallStore } from './store.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +22,7 @@ const PORT = Number(process.env.PORT ?? 8080);
 const CONFIG_DIR = path.resolve(process.env.CONFIG_DIR ?? '/config');
 const STATIC_DIR = path.resolve(here, process.env.STATIC_DIR ?? 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
+const RELAY_ON = (process.env.RELAY ?? 'on').toLowerCase() !== 'off';
 const MAX_BODY = 1_000_000;
 
 const TYPES = {
@@ -30,6 +34,10 @@ const TYPES = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.m3u8': 'application/vnd.apple.mpegurl',
+  '.ts': 'video/mp2t',
+  '.m4s': 'video/iso.segment',
+  '.mp4': 'video/mp4',
 };
 
 export function isAdmin(req, password = ADMIN_PASSWORD) {
@@ -90,11 +98,44 @@ async function serveStatic(req, res, pathname) {
   createReadStream(file).pipe(res);
 }
 
-export function createServer(store, { password = ADMIN_PASSWORD } = {}) {
+async function serveRelayFile(res, box, name) {
+  if (!/^\d+$/.test(box) || !/^[\w.-]+$/.test(name)) return sendJson(res, 400, { error: 'Bad path' });
+  const file = path.join(RELAY_DIR, box, name);
+  const info = await stat(file).catch(() => null);
+  if (!info) return sendJson(res, 404, { error: 'Not found' });
+  res.writeHead(200, {
+    'Content-Type': TYPES[path.extname(name)] ?? 'application/octet-stream',
+    'Content-Length': info.size,
+    'Cache-Control': 'no-store',
+  });
+  createReadStream(file).pipe(res);
+}
+
+export function createServer(store, { password = ADMIN_PASSWORD, relays = null } = {}) {
   const viewers = new Set();
-  const broadcast = () => {
-    const msg = `data: ${JSON.stringify(store.wall)}\n\n`;
+  const send = (event, data) => {
+    const msg = `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`;
     for (const res of viewers) res.write(msg);
+  };
+  const broadcast = () => send(null, store.wall);
+
+  // Relay readings arrive ten times a second per box; send them in one batch.
+  let levels = {};
+  let levelsDirty = false;
+  const levelTimer = setInterval(() => {
+    if (!levelsDirty) return;
+    levelsDirty = false;
+    send('levels', levels);
+  }, 100);
+  levelTimer.unref();
+  const relayEvents = {
+    onLevels(box, value) {
+      levels = { ...levels, [box]: value };
+      levelsDirty = true;
+    },
+    onStatus(box, status) {
+      send('relay', { box, status });
+    },
   };
 
   const server = http.createServer(async (req, res) => {
@@ -116,6 +157,7 @@ export function createServer(store, { password = ADMIN_PASSWORD } = {}) {
         try {
           const wall = await store.save(body);
           broadcast();
+          server.relays?.sync(wall);
           return sendJson(res, 200, wall);
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
@@ -130,6 +172,9 @@ export function createServer(store, { password = ADMIN_PASSWORD } = {}) {
           'X-Accel-Buffering': 'no',
         });
         res.write(`retry: 3000\ndata: ${JSON.stringify(store.wall)}\n\n`);
+        for (const [box, status] of Object.entries(server.relays?.statuses() ?? {})) {
+          res.write(`event: relay\ndata: ${JSON.stringify({ box: Number(box), status })}\n\n`);
+        }
         viewers.add(res);
         const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
         req.on('close', () => {
@@ -140,6 +185,9 @@ export function createServer(store, { password = ADMIN_PASSWORD } = {}) {
       }
 
       if (pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found' });
+
+      const relayFile = pathname.match(/^\/relay\/([^/]+)\/([^/]+)$/);
+      if (relayFile) return await serveRelayFile(res, relayFile[1], relayFile[2]);
 
       if ((pathname === '/admin' || pathname.startsWith('/admin/')) && !isAdmin(req, password)) {
         return askForLogin(res);
@@ -154,12 +202,24 @@ export function createServer(store, { password = ADMIN_PASSWORD } = {}) {
     }
   });
   server.viewers = viewers;
+  server.relayEvents = relayEvents;
+  server.relays = relays ? relays(relayEvents) : null;
+  server.relays?.sync(store.wall);
+  server.on('close', () => {
+    clearInterval(levelTimer);
+    server.relays?.stopAll();
+  });
   return server;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const store = await new WallStore(CONFIG_DIR).load();
-  createServer(store).listen(PORT, () => {
-    console.log(`4-Box Return on http://0.0.0.0:${PORT} (config in ${CONFIG_DIR}${ADMIN_PASSWORD ? ', admin password on' : ''})`);
+  const tools = { ytdlp: process.env.YTDLP_BIN || 'yt-dlp', ffmpeg: process.env.FFMPEG_BIN || 'ffmpeg' };
+  const relays = RELAY_ON ? (events) => new RelayManager(events, tools) : null;
+  createServer(store, { relays }).listen(PORT, () => {
+    console.log(
+      `4-Box Return on http://0.0.0.0:${PORT} (config in ${CONFIG_DIR}` +
+        `${ADMIN_PASSWORD ? ', admin password on' : ''}${RELAY_ON ? ', relay on' : ', relay off'})`,
+    );
   });
 }

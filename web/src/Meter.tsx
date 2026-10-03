@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import { METER_FLOOR_DB, dbToFraction, peakDb, smooth, type StereoAnalysers } from './audio';
 
 interface Props {
+  // Live audio from a player on this page...
   analysers: StereoAnalysers | null;
+  // ...or levels measured by the server relay (dBFS, left and right).
+  levels?: [number, number] | null;
   // Why there is no reading, shown as a tooltip on the empty bars.
   note?: string;
 }
@@ -11,8 +14,11 @@ const PEAK_HOLD_SEC = 1.5;
 const TICKS_DB = [0, -6, -12, -18, -24, -36, -48];
 
 // Two vertical bars (left, right) drawn on a canvas over the video.
-export function Meter({ analysers, note }: Props) {
+export function Meter({ analysers, levels = null, note }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const levelsRef = useRef(levels);
+  levelsRef.current = levels;
+  const hasInput = Boolean(analysers || levels);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,10 +65,16 @@ export function Meter({ analysers, note }: Props) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.fillRect(x, top, barW, height);
 
+        let reading: number | null = null;
         if (analysers) {
           const node = ch === 0 ? analysers.left : analysers.right;
           node.getFloatTimeDomainData(buffers[ch]);
-          level[ch] = smooth(level[ch], peakDb(buffers[ch]), dt);
+          reading = peakDb(buffers[ch]);
+        } else if (levelsRef.current) {
+          reading = levelsRef.current[ch];
+        }
+        if (reading !== null) {
+          level[ch] = smooth(level[ch], reading, dt);
           if (level[ch] >= hold[ch] || now - holdAt[ch] > PEAK_HOLD_SEC * 1000) {
             hold[ch] = level[ch];
             holdAt[ch] = now;
@@ -84,15 +96,15 @@ export function Meter({ analysers, note }: Props) {
         ctx.fillRect(pad, y, w - pad * 2, 1);
       }
 
-      if (analysers) frame = requestAnimationFrame(draw);
+      if (analysers || levelsRef.current) frame = requestAnimationFrame(draw);
     };
 
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [analysers]);
+  }, [analysers, hasInput]);
 
   return (
-    <div className={`meter ${analysers ? '' : 'meter-off'}`} title={note ?? 'Audio level, left and right'}>
+    <div className={`meter ${hasInput ? '' : 'meter-off'}`} title={note ?? 'Audio level, left and right'}>
       <canvas ref={canvasRef} />
       <div className="meter-labels">
         <span>L</span>

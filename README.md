@@ -15,7 +15,7 @@ The stream list and box layout are saved on the server in `/config/wall.json`.
 - **Facebook**: public video links, through Facebook's embedded video player.
 - **Kaltura**: a Player v7 iframe embed URL, the shorthand `kaltura:<partnerId>/<uiConfId>/<entryId>`, or an HLS `playManifest` URL.
 - **Any `.m3u8` HLS stream**: played with hls.js, with a real signal check. The box shows *Playing*, turns amber when video stops moving for 10 seconds, and red with *No signal* when the stream fails (it retries every 10 seconds).
-- **X**: live broadcasts cannot be embedded, so the box links out for now. The backend relay in Phase 3 will play them.
+- **X**: live broadcasts cannot be embedded, so the server pulls them (see *Server relay*) and the box plays them as HLS.
 
 Every box starts muted; press the speaker on one box to listen to it. Double-click the top bar for full screen.
 
@@ -23,7 +23,18 @@ Every box starts muted; press the speaker on one box to listen to it. Double-cli
 
 Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so the viewer shows **Click to turn on audio and meters** until then. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
 
-YouTube, Facebook and Kaltura iframe embeds keep their audio inside the embed where the page cannot read it, so their meters stay greyed out. Metering those needs the server to pull the stream itself (Phase 3).
+YouTube and Facebook embeds keep their audio inside the embed, so their meters are fed by the server relay instead and need no click. Kaltura iframe embeds have no meter; use the Kaltura HLS `playManifest` link to get one.
+
+### Server relay
+
+For each box showing a YouTube, Facebook or X link, the server runs `yt-dlp` piped into `ffmpeg`:
+
+- **YouTube and Facebook:** the video stays an embed, and the server decodes the audio and sends left/right levels to every viewer ten times a second. The server meter can run a few seconds ahead of or behind the embed.
+- **X:** the server repackages the broadcast as HLS at `/relay/<box>/index.m3u8`, and the box plays that.
+
+A relay that drops is retried after 2 seconds, then 4, 8 and so on, up to once a minute. Each relayed box costs the server one download (the smallest stream that has audio, for metering) and a little CPU. Set `RELAY=off` to turn it off.
+
+Sites change often and break `yt-dlp`, so the Docker image is rebuilt every Monday with the latest `yt-dlp`. Update the container to pick it up.
 
 Embedded players (YouTube, Facebook, Kaltura iframe) only show *Embed* as their status: the page cannot see inside them. Real live status for those arrives in Phase 2.
 
@@ -78,6 +89,6 @@ cd ../web && npm run dev                 # optional: hot reload on http://localh
 1. ~~Phase 0: OBS stopgap~~ (optional, outside this repo)
 2. **Phase 1: 2x2 viewer with an admin page** (this)
 3. Phase 2: backend polls the YouTube, Facebook and Kaltura APIs and pushes LIVE / OFFLINE / UPCOMING to each tile
-4. Phase 3: backend relay (yt-dlp) so X broadcasts and other non-embeddable streams play as HLS
+4. ~~Phase 3: backend relay (yt-dlp) so X broadcasts play and embeds get meters~~ (done)
 5. Phase 4: ffmpeg black / freeze / silence detection and alerts (sound, Slack, SMS)
 6. Phase 5: saved layouts per event, other grid sizes, schedules
