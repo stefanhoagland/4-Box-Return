@@ -15,7 +15,7 @@ RUN apk add --no-cache ffmpeg python3 \
  && python3 -m venv /opt/yt-dlp \
  && /opt/yt-dlp/bin/pip install --no-cache-dir yt-dlp yt-dlp-ejs \
  && ln -s /opt/yt-dlp/bin/yt-dlp /usr/local/bin/yt-dlp
-ENV NODE_ENV=production CONFIG_DIR=/config STATIC_DIR=/app/public
+ENV NODE_ENV=production PORT=8080 CONFIG_DIR=/config STATIC_DIR=/app/public
 WORKDIR /app
 COPY server/package.json server/*.mjs ./
 COPY --from=build /app/dist ./public
@@ -23,5 +23,5 @@ COPY --from=build /app/dist ./public
 RUN mkdir -p /config
 VOLUME /config
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
 CMD ["node", "index.mjs"]

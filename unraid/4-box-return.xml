@@ -14,5 +14,6 @@
   <ExtraParams/>
   <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port the viewer and admin page are served on" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
   <Config Name="Config" Target="/config" Default="/mnt/user/appdata/4-box-return" Mode="rw" Description="Where the stream list and box layout are saved" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/4-box-return</Config>
+  <Config Name="App port" Target="PORT" Default="8080" Mode="" Description="Port the app listens on inside the container. Only change this when the container has its own IP (br0), since the Web UI port mapping is ignored there." Type="Variable" Display="always" Required="false" Mask="false">8080</Config>
   <Config Name="Admin password" Target="ADMIN_PASSWORD" Default="" Mode="" Description="Password for the admin page (user name: admin). Leave empty for no password." Type="Variable" Display="always" Required="false" Mask="true"></Config>
 </Container>

@@ -71,6 +71,7 @@ On Unraid, use **Docker > Add Container** with:
 | Port | Container port `8080`, host port `8080` (or any free port), TCP |
 | Path | Container path `/config`, host path `/mnt/user/appdata/4-box-return` |
 | Variable (optional) | Key `ADMIN_PASSWORD`, value of your choice. The admin login user name is `admin`. Leave it out for no password. |
+| Variable (optional) | Key `PORT`, value `8080` by default. Only needed when the container has its own IP (Network Type `br0` or another custom network): the port mapping is ignored there, so set the port the app listens on here and point your reverse proxy at `<container IP>:<PORT>`. |
 
 Or copy [`unraid/4-box-return.xml`](unraid/4-box-return.xml) to `/boot/config/plugins/dockerMan/templates-user/` on the server and pick it from the template list.
 
