@@ -1,0 +1,14 @@
+{
+  "name": "four-box-return-server",
+  "private": true,
+  "type": "module",
+  "description": "Serves the multiviewer, stores the wall config and pushes changes to viewers",
+  "scripts": {
+    "start": "node index.mjs",
+    "dev": "CONFIG_DIR=./.data STATIC_DIR=../web/dist node --watch index.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
