@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HlsPlayer, type HlsState } from './HlsPlayer';
-import type { TileConfig } from './layout';
 import { PLATFORM_LABEL, parseSource } from './sources';
 
 interface Props {
   index: number;
-  config: TileConfig;
-  editing: boolean;
+  label: string;
+  url: string;
   muted: boolean;
   onToggleAudio: () => void;
-  onChange: (config: TileConfig) => void;
 }
 
 type Status = HlsState | 'embed' | 'unsupported' | 'none';
@@ -24,16 +22,9 @@ const STATUS_TEXT: Record<Status, string> = {
   none: 'Empty',
 };
 
-export function Tile({ index, config, editing, muted, onToggleAudio, onChange }: Props) {
-  const source = useMemo(() => parseSource(config.url), [config.url]);
+export function Tile({ index, label, url, muted, onToggleAudio }: Props) {
+  const source = useMemo(() => parseSource(url), [url]);
   const [hlsState, setHlsState] = useState<HlsState>('loading');
-  // The link is applied on Enter or when the field loses focus, so players
-  // do not reload on every keystroke.
-  const [draftUrl, setDraftUrl] = useState(config.url);
-  useEffect(() => setDraftUrl(config.url), [config.url]);
-  const commitUrl = () => {
-    if (draftUrl.trim() !== config.url) onChange({ ...config, url: draftUrl.trim() });
-  };
   const tileRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -70,11 +61,11 @@ export function Tile({ index, config, editing, muted, onToggleAudio, onChange }:
     <section
       ref={tileRef}
       className={`tile status-${status} ${muted ? '' : 'tile-audio'}`}
-      aria-label={config.label || `Box ${index + 1}`}
+      aria-label={label || `Box ${index + 1}`}
     >
       <header className="tile-bar" onDoubleClick={toggleFullscreen}>
         <span className="tile-number">{index + 1}</span>
-        <span className="tile-label">{config.label}</span>
+        <span className="tile-label">{label}</span>
         {source.kind !== 'empty' && (
           <span className="tile-platform">{PLATFORM_LABEL[source.platform]}</span>
         )}
@@ -104,7 +95,7 @@ export function Tile({ index, config, editing, muted, onToggleAudio, onChange }:
             key={isYoutube ? source.openUrl : iframeSrc}
             className="player"
             src={iframeSrc}
-            title={config.label}
+            title={label}
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
           />
@@ -120,36 +111,12 @@ export function Tile({ index, config, editing, muted, onToggleAudio, onChange }:
             </a>
           </div>
         )}
-        {source.kind === 'empty' && !editing && (
+        {source.kind === 'empty' && (
           <div className="tile-message">
-            <p>No stream set. Press Edit to add one.</p>
+            <p>No stream assigned. Pick one on the admin page.</p>
           </div>
         )}
       </div>
-
-      {editing && (
-        <form
-          className="tile-edit"
-          onSubmit={(e) => {
-            e.preventDefault();
-            commitUrl();
-          }}
-        >
-          <input
-            aria-label="Label"
-            placeholder="Label"
-            value={config.label}
-            onChange={(e) => onChange({ ...config, label: e.target.value })}
-          />
-          <input
-            aria-label="Stream link"
-            placeholder="YouTube, Facebook, X, Kaltura or .m3u8 link"
-            value={draftUrl}
-            onChange={(e) => setDraftUrl(e.target.value)}
-            onBlur={commitUrl}
-          />
-        </form>
-      )}
     </section>
   );
 }
