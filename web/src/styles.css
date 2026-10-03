@@ -1,0 +1,246 @@
+:root {
+  --bg: #0b0d10;
+  --panel: #15181d;
+  --line: #2a2f37;
+  --text: #e8eaed;
+  --muted: #8b929c;
+  --live: #2ecc71;
+  --warn: #f5a623;
+  --bad: #e5484d;
+  --audio: #3b82f6;
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--muted);
+}
+
+button[aria-pressed='true'] {
+  border-color: var(--audio);
+}
+
+.wall {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  min-height: 0;
+}
+
+@media (max-width: 700px) {
+  .wall {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-rows: minmax(220px, 1fr);
+  }
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #000;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tile.status-stalled {
+  border-color: var(--warn);
+}
+
+.tile.status-error {
+  border-color: var(--bad);
+}
+
+.tile.tile-audio {
+  box-shadow: inset 0 0 0 2px var(--audio);
+}
+
+.tile-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--panel);
+  font-size: 13px;
+  user-select: none;
+}
+
+.tile-bar button {
+  padding: 2px 8px;
+}
+
+.tile-number {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tile-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-platform {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tile-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status-playing .dot {
+  background: var(--live);
+}
+
+.status-loading .dot,
+.status-stalled .dot {
+  background: var(--warn);
+}
+
+.status-unsupported .dot {
+  background: var(--warn);
+}
+
+.status-error .dot {
+  background: var(--bad);
+}
+
+.tile-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+  object-fit: contain;
+}
+
+.tile-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.tile-message a {
+  color: var(--audio);
+}
+
+.tile-edit {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.tile-edit input {
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.tile-edit input:first-child {
+  flex: 0 0 30%;
+}
+
+.tile-edit input:last-child {
+  flex: 1;
+}
+
+.tile:fullscreen {
+  border: 0;
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>4-box-return</Name>
+  <Repository>ghcr.io/stefanhoagland/4-box-return:latest</Repository>
+  <Registry>https://github.com/stefanhoagland/4-box-return/pkgs/container/4-box-return</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/stefanhoagland/4-box-return/issues</Support>
+  <Project>https://github.com/stefanhoagland/4-box-return</Project>
+  <Overview>Browser 2x2 multiviewer for checking YouTube, Facebook, X and Kaltura live streams are on air.</Overview>
+  <Category>MediaApp:Video</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <Icon/>
+  <ExtraParams/>
+  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port the multiviewer is served on" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+</Container>
