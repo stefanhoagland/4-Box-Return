@@ -117,6 +117,8 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
             allowFullScreen
           />
         )}
+        {/* Keeps the mouse off the YouTube player so its title and controls never pop up. */}
+        {isYoutube && <div className="embed-shield" />}
         {source.kind === 'hls' && (
           <HlsPlayer
             src={source.manifestUrl}

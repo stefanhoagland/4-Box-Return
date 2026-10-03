@@ -44,7 +44,7 @@ export function youtubeEmbed(u: URL): Source | null {
       platform: 'youtube',
       openUrl,
       embedUrl: (muted) =>
-        `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&playsinline=1&enablejsapi=1`,
+        `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&playsinline=1&enablejsapi=1&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3`,
     };
   }
   if (channelId && YT_CHANNEL.test(channelId)) {
@@ -54,7 +54,7 @@ export function youtubeEmbed(u: URL): Source | null {
       platform: 'youtube',
       openUrl,
       embedUrl: (muted) =>
-        `https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1&mute=${muted ? 1 : 0}&playsinline=1&enablejsapi=1`,
+        `https://www.youtube.com/embed/live_stream?channel=${channelId}&autoplay=1&mute=${muted ? 1 : 0}&playsinline=1&enablejsapi=1&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3`,
     };
   }
   return {
