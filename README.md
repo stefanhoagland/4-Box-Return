@@ -26,6 +26,28 @@ npm run dev        # http://localhost:5173
 
 `npm test` runs the unit tests, `npm run build` produces a static site in `web/dist` that any static host can serve.
 
+## Run it with Docker (Unraid, Synology, any Docker host)
+
+Every push to `main` publishes `ghcr.io/stefanhoagland/4-box-return:latest` (amd64 and arm64). It is a static site on port 8080 and stores nothing on the server, so it needs no volumes.
+
+```sh
+docker run -d --name 4-box-return -p 8080:8080 --restart unless-stopped ghcr.io/stefanhoagland/4-box-return:latest
+```
+
+On Unraid, use **Docker > Add Container** with:
+
+| Field | Value |
+| --- | --- |
+| Name | `4-box-return` |
+| Repository | `ghcr.io/stefanhoagland/4-box-return:latest` |
+| Network Type | `Bridge` |
+| WebUI | `http://[IP]:[PORT:8080]/` |
+| Port (Add another Path, Port...) | Container port `8080`, host port `8080` (or any free port), TCP |
+
+Or copy [`unraid/4-box-return.xml`](unraid/4-box-return.xml) to `/boot/config/plugins/dockerMan/templates-user/` on the server and pick it from the template list.
+
+If the repository is private, the image is private too: either make the package public under the repo's **Packages** settings, or log Unraid in to `ghcr.io` with a GitHub personal access token that has `read:packages`.
+
 ## Roadmap
 
 1. ~~Phase 0: OBS stopgap~~ (optional, outside this repo)
