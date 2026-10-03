@@ -1,7 +1,6 @@
 // 4-Box Return server: serves the built web app, stores the wall in CONFIG_DIR,
 // and pushes every change to open viewers over Server-Sent Events.
 //
-//   PORT            port to listen on (default 8080)
 //   CONFIG_DIR      where wall.json is kept (default /config)
 //   STATIC_DIR      built web app (default ./public)
 //   ADMIN_PASSWORD  if set, /admin and saving require this password (user name: admin)
@@ -18,7 +17,8 @@ import { RELAY_DIR, RelayManager } from './relay.mjs';
 import { WallStore } from './store.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT ?? 8080);
+// Always 8080 inside the container; pick the outside port in the Docker/Unraid port mapping.
+const PORT = 8080;
 const CONFIG_DIR = path.resolve(process.env.CONFIG_DIR ?? '/config');
 const STATIC_DIR = path.resolve(here, process.env.STATIC_DIR ?? 'public');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
