@@ -20,13 +20,13 @@ describe('parseSource', () => {
     'https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=10',
   ])('embeds YouTube video %s', (raw) => {
     expect(embed(raw)).toBe(
-      'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&playsinline=1&enablejsapi=1',
+      'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1&playsinline=1&enablejsapi=1&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3',
     );
   });
 
   it('embeds a YouTube channel as its current live stream', () => {
     expect(embed('https://www.youtube.com/channel/UC4R8DWoMoI7CAwX8_LjQHig', false)).toBe(
-      'https://www.youtube.com/embed/live_stream?channel=UC4R8DWoMoI7CAwX8_LjQHig&autoplay=1&mute=0&playsinline=1&enablejsapi=1',
+      'https://www.youtube.com/embed/live_stream?channel=UC4R8DWoMoI7CAwX8_LjQHig&autoplay=1&mute=0&playsinline=1&enablejsapi=1&controls=0&disablekb=1&fs=0&rel=0&iv_load_policy=3',
     );
   });
 
