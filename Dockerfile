@@ -1,5 +1,7 @@
 # Builds the web app and serves it as a static site with nginx on port 8080.
-FROM node:22-alpine AS build
+# The build stage runs on the native platform: its output is static files,
+# so the arm64 image does not need to compile under emulation.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
