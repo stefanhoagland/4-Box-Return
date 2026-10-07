@@ -83,6 +83,8 @@ export function HlsPlayer({ src, muted, captions = false, onState, onAnalysers }
 
     const watchdog = window.setInterval(() => {
       if (current === 'error') return;
+      // Browsers can pause video in a tab nobody is looking at; start it again.
+      if (video.paused && !document.hidden) video.play().catch(() => undefined);
       if (video.currentTime !== lastTime) {
         lastTime = video.currentTime;
         lastMove = Date.now();
@@ -92,8 +94,19 @@ export function HlsPlayer({ src, muted, captions = false, onState, onAnalysers }
       }
     }, 1000);
 
+    // Coming back to the tab: jump to the live edge instead of playing old video.
+    const onVisibility = () => {
+      if (document.hidden) return;
+      const edge = hls?.liveSyncPosition;
+      if (edge && video.currentTime < edge - 10) video.currentTime = edge;
+      lastMove = Date.now();
+      video.play().catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     start();
     return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(watchdog);
       window.clearTimeout(retryTimer);
       hls?.destroy();

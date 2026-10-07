@@ -18,6 +18,14 @@ const SAMPLE_RATE = 8000;
 const BLOCK_FRAMES = SAMPLE_RATE / 10; // one level reading every 100 ms
 const FLOOR_DB = -60;
 const MAX_BACKOFF_MS = 60_000;
+// How the relay copes with live streams that drop or hang (tests shorten these).
+export const relayTimings = {
+  stallMs: 20_000, // no audio for this long after it started: stuck, restart
+  firstAudioMs: 60_000, // yt-dlp can take a while to find the stream
+  healthyRunMs: 30_000, // a stream that played this long and dropped reconnects at once
+  holdMs: 15_000, // while reconnecting, viewers keep the last state for this long
+  watchdogMs: 5000,
+};
 
 const host = (u) => u.hostname.replace(/^(www|m|mobile)\./, '').toLowerCase();
 
@@ -133,7 +141,8 @@ class Relay {
 
   async start() {
     if (this.stopped) return;
-    this.setStatus('starting');
+    // During a quick reconnect after a good run, viewers keep seeing it as running.
+    if (!this.holding) this.setStatus('starting');
     await rm(this.dir, { recursive: true, force: true });
     await mkdir(this.dir, { recursive: true });
     if (this.stopped) return;
@@ -157,35 +166,75 @@ class Relay {
 
     const blockBytes = BLOCK_FRAMES * 4;
     let pending = Buffer.alloc(0);
-    let live = false;
+    let liveSince = 0;
+    let lastAudio = Date.now();
     ff.stdout.on('data', (chunk) => {
       pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
       while (pending.length >= blockBytes) {
         this.events.onLevels(this.box, blockLevels(pending.subarray(0, blockBytes)));
         pending = pending.subarray(blockBytes);
-        if (!live) {
-          live = true;
+        lastAudio = Date.now();
+        if (!liveSince) {
+          liveSince = lastAudio;
           this.backoff = 2000;
+          this.endHold();
           this.setStatus('running');
         }
       }
     });
 
+    // yt-dlp or ffmpeg can hang without exiting; restart when the audio stops.
+    const watchdog = setInterval(() => {
+      const quiet = Date.now() - lastAudio;
+      if (quiet > (liveSince ? relayTimings.stallMs : relayTimings.firstAudioMs)) {
+        keepErr(`\nNo audio for ${Math.round(quiet / 1000)} s`);
+        ff.kill('SIGKILL');
+      }
+    }, relayTimings.watchdogMs);
+
     ff.on('close', () => {
+      clearInterval(watchdog);
       dl.kill('SIGKILL');
       this.procs = [];
       if (this.stopped) return;
       const message = errText.trim().split('\n').pop() || 'Stream ended';
-      this.setStatus('error', message);
-      this.events.onLevels(this.box, null);
+      const ranFor = liveSince ? Date.now() - liveSince : 0;
+      if (ranFor >= relayTimings.healthyRunMs) {
+        // Live streams drop now and then; reconnect at once and hide the blip.
+        this.backoff = 2000;
+        this.startHold(message);
+        this.retry = setTimeout(() => void this.start(), 1000);
+        return;
+      }
+      if (!this.holding) {
+        this.setStatus('error', message);
+        this.events.onLevels(this.box, null);
+      }
       this.retry = setTimeout(() => void this.start(), this.backoff);
       this.backoff = Math.min(this.backoff * 2, MAX_BACKOFF_MS);
     });
   }
 
+  // Keeps the last status and meter on screen while a dropped stream reconnects.
+  startHold(message) {
+    if (this.holding) return;
+    this.holding = setTimeout(() => {
+      this.holding = null;
+      if (this.stopped) return;
+      this.setStatus('error', message);
+      this.events.onLevels(this.box, null);
+    }, relayTimings.holdMs);
+  }
+
+  endHold() {
+    clearTimeout(this.holding);
+    this.holding = null;
+  }
+
   stop() {
     this.stopped = true;
     clearTimeout(this.retry);
+    this.endHold();
     for (const p of this.procs ?? []) p.kill('SIGKILL');
     void rm(this.dir, { recursive: true, force: true });
   }
