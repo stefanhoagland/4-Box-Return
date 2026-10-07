@@ -3,6 +3,7 @@ import { useAudioEnabled, type StereoAnalysers } from './audio';
 import { HlsPlayer, type HlsState } from './HlsPlayer';
 import { Meter } from './Meter';
 import { PLATFORM_LABEL, parseSource } from './sources';
+import { hasLiveVideo, useNoVideo } from './slate';
 import type { Levels, RelayStatus } from './wall';
 
 interface Props {
@@ -16,7 +17,7 @@ interface Props {
   relay?: RelayStatus | null;
 }
 
-type Status = HlsState | 'embed' | 'unsupported' | 'none';
+type Status = HlsState | 'embed' | 'unsupported' | 'none' | 'offline';
 
 const STATUS_TEXT: Record<Status, string> = {
   loading: 'Loading',
@@ -26,6 +27,7 @@ const STATUS_TEXT: Record<Status, string> = {
   embed: 'Embed',
   unsupported: 'Not playable',
   none: 'Empty',
+  offline: 'Off air',
 };
 
 export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = null, relay = null }: Props) {
@@ -58,8 +60,12 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
     );
   }, [muted, isYoutube]);
 
-  const status: Status =
-    source.kind === 'hls'
+  // After a stretch with no live video the box shows a slate instead.
+  const offAirSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
+
+  const status: Status = offAirSince !== null
+    ? 'offline'
+    : source.kind === 'hls'
       ? hlsState
       : source.kind === 'iframe'
         ? 'embed'
@@ -161,6 +167,15 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
             <a href={source.openUrl} target="_blank" rel="noreferrer">
               Open stream in a new tab
             </a>
+          </div>
+        )}
+        {offAirSince !== null && source.kind !== 'empty' && (
+          <div className={`slate slate-${source.platform}`}>
+            <div className="slate-platform">{PLATFORM_LABEL[source.platform]}</div>
+            <div className="slate-text">No live video</div>
+            <div className="slate-since">
+              since {new Date(offAirSince).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </div>
           </div>
         )}
         {source.kind === 'empty' && (

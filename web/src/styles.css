@@ -114,6 +114,7 @@ button[aria-pressed='true'] {
   border-color: var(--warn);
 }
 
+.tile.status-offline,
 .tile.status-error {
   border-color: var(--bad);
 }
@@ -180,6 +181,10 @@ button[aria-pressed='true'] {
 
 .status-unsupported .dot {
   background: var(--warn);
+}
+
+.status-offline .dot {
+  background: var(--bad);
 }
 
 .status-error .dot {
@@ -462,4 +467,59 @@ code {
 
 .audio-enable {
   border-color: var(--audio);
+}
+
+/* Slate shown over a box that has had no live video for a while */
+
+.slate {
+  --brand: #8b929c;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--brand) 28%, #0b0d10) 0%, #0b0d10 75%);
+  text-align: center;
+}
+
+.slate-youtube {
+  --brand: #ff0000;
+}
+
+.slate-facebook {
+  --brand: #1877f2;
+}
+
+.slate-x {
+  --brand: #e7e9ea;
+}
+
+.slate-kaltura {
+  --brand: #00a6ce;
+}
+
+.slate-platform {
+  font-size: clamp(28px, 7vw, 72px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  padding: 0.05em 0.4em;
+  border-bottom: 4px solid var(--brand);
+}
+
+.slate-text {
+  margin-top: 8px;
+  font-size: clamp(14px, 2vw, 22px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.slate-since {
+  font-size: 13px;
+  color: var(--muted);
 }
