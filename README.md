@@ -21,7 +21,7 @@ Every box starts muted; press the speaker on one box to listen to it. Double-cli
 
 ### Audio meters
 
-Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so the viewer shows **Click to turn on audio and meters** until then. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
+Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so HLS meters and sound start on the first click or key press anywhere on the viewer. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
 
 YouTube, Facebook and Kaltura embeds keep their audio inside the embed, so their meters are fed by the server relay instead and need no click. For Kaltura the server pulls the entry's public HLS `playManifest`; entries that need a login get no meter.
 

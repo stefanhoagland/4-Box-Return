@@ -15,7 +15,8 @@ export function Viewer() {
   const now = useClock();
   const audioEnabled = useAudioEnabled();
 
-  // Browsers block sound and audio analysis until the first click or key press.
+  // Browsers block sound and audio analysis until the first click or key press
+  // anywhere on the page, so audio turns on then without a separate button.
   useEffect(() => {
     if (audioEnabled) return;
     const enable = () => void enableAudio();
@@ -51,11 +52,6 @@ export function Viewer() {
       <header className="topbar" onDoubleClick={toggleFullscreen}>
         <h1>{wall.title}</h1>
         {!online && <span className="offline">Reconnecting to server…</span>}
-        {!audioEnabled && (
-          <button className="audio-enable" onClick={() => void enableAudio()}>
-            Click to turn on audio and meters
-          </button>
-        )}
         <time className="clock" dateTime={now.toISOString()}>
           {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </time>
