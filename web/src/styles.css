@@ -465,10 +465,6 @@ code {
   opacity: 0.45;
 }
 
-.audio-enable {
-  border-color: var(--audio);
-}
-
 /* Slate shown over a box that has had no live video for a while */
 
 .slate {
