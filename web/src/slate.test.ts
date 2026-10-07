@@ -22,6 +22,12 @@ describe('hasLiveVideo', () => {
     expect(hasLiveVideo(x, 'loading', { state: 'error', kind: 'play', message: 'offline' })).toBe(false);
   });
 
+  it('does not call a Kaltura embed off air when the server is refused', () => {
+    expect(hasLiveVideo(kaltura, 'loading', { state: 'error', kind: 'meter', message: 'ERROR: HTTP Error 403: Forbidden' })).toBe(null);
+    expect(hasLiveVideo(kaltura, 'loading', { state: 'error', kind: 'meter', message: 'Stream ended' })).toBe(false);
+    expect(hasLiveVideo(kaltura, 'loading', { state: 'running', kind: 'meter', message: '' })).toBe(true);
+  });
+
   it('cannot tell for embeds the server is not pulling', () => {
     expect(hasLiveVideo(youtube, 'loading', null)).toBe(null);
     expect(hasLiveVideo(kaltura, 'loading', null)).toBe(null);

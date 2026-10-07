@@ -11,7 +11,12 @@ export const SLATE_AFTER_MS = 30_000;
 export function hasLiveVideo(source: Source, hlsState: HlsState, relay: RelayStatus | null): boolean | null {
   if (source.kind === 'hls') return hlsState === 'playing';
   // Embeds hide their state from the page; the server relay pulling the stream is the sign it is live.
-  if (source.kind === 'iframe' || source.kind === 'unsupported') return relay ? relay.state === 'running' : null;
+  if (source.kind === 'iframe' || source.kind === 'unsupported') {
+    if (!relay) return null;
+    // A Kaltura entry that needs a login refuses the server but still plays in its embed.
+    if (source.platform === 'kaltura' && relay.state === 'error' && /\b40[13]\b/.test(relay.message)) return null;
+    return relay.state === 'running';
+  }
   return null;
 }
 

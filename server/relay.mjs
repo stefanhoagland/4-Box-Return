@@ -21,8 +21,32 @@ const MAX_BACKOFF_MS = 60_000;
 
 const host = (u) => u.hostname.replace(/^(www|m|mobile)\./, '').toLowerCase();
 
+// The HLS link of a Kaltura entry, from the kaltura:<partner>/<uiconf>/<entry>
+// shorthand or a kaltura.com player embed link. Null if it is neither.
+export function kalturaManifest(raw) {
+  let partner;
+  let entry;
+  const short = String(raw).trim().match(/^kaltura:(\d+)\/\d+\/([A-Za-z0-9_]+)$/);
+  if (short) [, partner, entry] = short;
+  else {
+    let u;
+    try {
+      u = new URL(raw);
+    } catch {
+      return null;
+    }
+    if (!u.hostname.toLowerCase().endsWith('kaltura.com')) return null;
+    const path = u.pathname;
+    partner = path.match(/\/(?:p|partner_id)\/(\d+)/)?.[1];
+    entry = u.searchParams.get('entry_id') ?? u.searchParams.get('entryId') ?? path.match(/\/entry_?id\/([A-Za-z0-9_]+)/i)?.[1];
+  }
+  if (!partner || !entry || !/^[A-Za-z0-9_]+$/.test(entry)) return null;
+  return `https://cdnapisec.kaltura.com/p/${partner}/sp/${partner}00/playManifest/entryId/${entry}/format/applehttp/protocol/https/a.m3u8`;
+}
+
 // Which boxes need the relay, and what for.
 export function relayKind(raw) {
+  if (/^kaltura:/i.test(String(raw).trim())) return kalturaManifest(raw) ? 'meter' : null;
   let u;
   try {
     u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
@@ -33,6 +57,8 @@ export function relayKind(raw) {
   const h = host(u);
   if (['youtube.com', 'youtu.be', 'facebook.com', 'fb.watch'].includes(h)) return 'meter';
   if (['x.com', 'twitter.com'].includes(h)) return 'play';
+  // Kaltura player embeds hide their audio; the server pulls the entry's HLS instead.
+  if (h.endsWith('kaltura.com') && !/format\/applehttp/i.test(u.pathname) && kalturaManifest(u.toString())) return 'meter';
   return null;
 }
 
@@ -52,6 +78,8 @@ export function blockLevels(buf) {
 
 // A bare YouTube channel link lists the channel's videos; /live is its current stream.
 export function ytdlpUrl(raw) {
+  const kaltura = kalturaManifest(raw);
+  if (kaltura) return kaltura;
   try {
     const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
     const parts = u.pathname.split('/').filter(Boolean);
