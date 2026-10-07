@@ -16,6 +16,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { RELAY_DIR, RelayManager } from './relay.mjs';
 import { WallStore } from './store.mjs';
+import { createHandleResolver } from './youtube.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
@@ -111,7 +112,7 @@ async function serveRelayFile(res, box, name) {
   createReadStream(file).pipe(res);
 }
 
-export function createServer(store, { password = ADMIN_PASSWORD, relays = null } = {}) {
+export function createServer(store, { password = ADMIN_PASSWORD, relays = null, resolveUrls = async (w) => w } = {}) {
   const viewers = new Set();
   const send = (event, data) => {
     const msg = `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`;
@@ -155,7 +156,7 @@ export function createServer(store, { password = ADMIN_PASSWORD, relays = null }
           return sendJson(res, 400, { error: 'Invalid JSON' });
         }
         try {
-          const wall = await store.save(body);
+          const wall = await store.save(await resolveUrls(body));
           broadcast();
           server.relays?.sync(wall);
           return sendJson(res, 200, wall);
@@ -216,7 +217,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const store = await new WallStore(CONFIG_DIR).load();
   const tools = { ytdlp: process.env.YTDLP_BIN || 'yt-dlp', ffmpeg: process.env.FFMPEG_BIN || 'ffmpeg' };
   const relays = RELAY_ON ? (events) => new RelayManager(events, tools) : null;
-  createServer(store, { relays }).listen(PORT, () => {
+  createServer(store, { relays, resolveUrls: createHandleResolver() }).listen(PORT, () => {
     console.log(
       `4-Box Return on http://0.0.0.0:${PORT} (config in ${CONFIG_DIR}` +
         `${ADMIN_PASSWORD ? ', admin password on' : ''}${RELAY_ON ? ', relay on' : ', relay off'})`,
