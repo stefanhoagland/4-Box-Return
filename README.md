@@ -23,6 +23,10 @@ Every box starts muted; press the speaker on one box to listen to it. Press **CC
 
 Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so HLS meters and sound start on the first click or key press anywhere on the viewer. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
 
+Browsers slow down or pause video in a tab or window nobody is looking at. When you come back to the viewer, HLS boxes jump to the live edge and embedded players (YouTube, Facebook, Kaltura) reload if the tab was hidden for more than 10 seconds. To keep everything playing while the viewer is in the background, start Chrome with `--disable-background-media-suspend --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --disable-background-timer-throttling`.
+
+The server relay restarts a stream that goes quiet for 20 seconds. If a stream that had been playing for a while drops, it reconnects at once and the meter holds its last state for up to 15 seconds, so short drops (common on Facebook Live) do not blank the meter.
+
 YouTube, Facebook and Kaltura embeds keep their audio inside the embed, so their meters are fed by the server relay instead and need no click. For Kaltura the server pulls the entry's public HLS `playManifest`; entries that need a login get no meter.
 
 ### Server relay

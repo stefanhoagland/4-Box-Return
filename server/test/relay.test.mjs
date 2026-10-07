@@ -3,7 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { RelayManager, blockLevels, kalturaManifest, relayKind, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
+import { RelayManager, blockLevels, kalturaManifest, relayKind, relayTimings, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
 
 test('relayKind picks which links the server has to pull', () => {
   assert.equal(relayKind('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'meter');
@@ -88,4 +88,39 @@ test('a relay pipes the stream through ffmpeg and reports live levels', async (t
   assert.equal(box, 1);
   assert.ok(l > -15 && l < -9, `left ${l}`); // sine at 1/8 scale +6 dB ≈ -12 dBFS
   assert.ok(r > -33 && r < -27, `right ${r}`); // -12 dB ≈ -30 dBFS
+});
+
+test('a relay that goes quiet is restarted, and a quick reconnect after a good run is hidden', async (t) => {
+  // Stands in for yt-dlp: 1.5 s of audio, then hangs without exiting.
+  const dir = await mkdtemp(path.join(tmpdir(), 'fbr-stall-'));
+  const saved = { ...relayTimings };
+  Object.assign(relayTimings, { stallMs: 800, firstAudioMs: 5000, healthyRunMs: 1000, holdMs: 4000, watchdogMs: 200 });
+  t.after(async () => {
+    Object.assign(relayTimings, saved);
+    await rm(dir, { recursive: true, force: true });
+  });
+  const fake = path.join(dir, 'fake-ytdlp');
+  await writeFile(
+    fake,
+    '#!/bin/sh\nffmpeg -hide_banner -loglevel error -f lavfi -i "sine=f=440:d=1.5" -ac 2 -f matroska -\nexec sleep 30\n',
+  );
+  await chmod(fake, 0o755);
+
+  const events = [];
+  const manager = new RelayManager(
+    {
+      onLevels: (box, v) => events.push(v ? 'level' : 'null'),
+      onStatus: (box, s) => events.push(s ? s.state : 'cleared'),
+    },
+    { ytdlp: fake, ffmpeg: 'ffmpeg' },
+  );
+  manager.sync({ streams: [{ id: 'a', name: 'FB', url: 'https://www.facebook.com/x/videos/1/' }], boxes: ['a', null, null, null] });
+  await new Promise((r) => setTimeout(r, 5000));
+  manager.stopAll();
+
+  const starts = events.filter((e) => e === 'starting').length;
+  const runs = events.filter((e) => e === 'running').length;
+  assert.equal(starts, 1, `the reconnect is not announced: ${events.join(' ')}`);
+  assert.ok(runs >= 2, `it came back after the stall: ${events.join(' ')}`);
+  assert.ok(!events.includes('error') && !events.includes('null'), `viewers saw no drop: ${events.join(' ')}`);
 });

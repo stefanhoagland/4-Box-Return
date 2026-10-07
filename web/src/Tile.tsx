@@ -32,6 +32,25 @@ const STATUS_TEXT: Record<Status, string> = {
   offline: 'Off air',
 };
 
+// Embedded players fall behind or stop while the tab is hidden, and the page
+// cannot reach inside them to catch up. Reloading them on return puts them
+// back on the live edge.
+const RELOAD_AFTER_HIDDEN_MS = 10_000;
+
+function useReloadOnReturn(): number {
+  const [key, setKey] = useState(0);
+  useEffect(() => {
+    let hiddenAt = document.hidden ? Date.now() : 0;
+    const onVisibility = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > RELOAD_AFTER_HIDDEN_MS) setKey((k) => k + 1);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+  return key;
+}
+
 export function Tile({
   index,
   label,
@@ -57,6 +76,7 @@ export function Tile({
   const [analysers, setAnalysers] = useState<StereoAnalysers | null>(null);
   const audioEnabled = useAudioEnabled();
   const tileRef = useRef<HTMLElement>(null);
+  const reloadKey = useReloadOnReturn();
   const frameRef = useRef<HTMLIFrameElement>(null);
 
   const isYoutube = source.kind === 'iframe' && source.platform === 'youtube';
@@ -151,7 +171,7 @@ export function Tile({
         {source.kind === 'iframe' && (
           <iframe
             ref={frameRef}
-            key={isYoutube ? source.openUrl : iframeSrc}
+            key={`${isYoutube ? source.openUrl : iframeSrc}#${reloadKey}`}
             className="player"
             src={iframeSrc}
             title={label}
