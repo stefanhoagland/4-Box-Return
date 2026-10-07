@@ -23,7 +23,7 @@ Every box starts muted; press the speaker on one box to listen to it. Double-cli
 
 Each HLS box has a semi-transparent left/right peak meter (dBFS, -60 to 0, with peak hold) down its right edge. Meters keep moving on muted boxes. Browsers only allow audio after someone clicks or presses a key on the page, so the viewer shows **Click to turn on audio and meters** until then. On a wall screen that nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` (or click once after it loads).
 
-YouTube and Facebook embeds keep their audio inside the embed, so their meters are fed by the server relay instead and need no click. Kaltura iframe embeds have no meter; use the Kaltura HLS `playManifest` link to get one.
+YouTube, Facebook and Kaltura embeds keep their audio inside the embed, so their meters are fed by the server relay instead and need no click. For Kaltura the server pulls the entry's public HLS `playManifest`; entries that need a login get no meter.
 
 ### Server relay
 
@@ -36,7 +36,7 @@ A relay that drops is retried after 2 seconds, then 4, 8 and so on, up to once a
 
 Sites change often and break `yt-dlp`, so the Docker image is rebuilt every Monday with the latest `yt-dlp`. Update the container to pick it up.
 
-After 30 seconds without live video a box shows a slate with its platform name and the time it went off air. HLS boxes use the player itself; YouTube, Facebook and X boxes use the server relay (no relay, no slate). Kaltura iframe embeds never get a slate because the page cannot see inside them.
+After 30 seconds without live video a box shows a slate with its platform name and the time it went off air. HLS boxes use the player itself; YouTube, Facebook, X and Kaltura embed boxes use the server relay (no relay, no slate). A Kaltura entry that refuses the server (needs a login) gets no slate rather than a false one.
 
 Embedded players (YouTube, Facebook, Kaltura iframe) only show *Embed* as their status: the page cannot see inside them. Real live status for those arrives in Phase 2.
 

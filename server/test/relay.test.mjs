@@ -3,7 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { RelayManager, blockLevels, relayKind, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
+import { RelayManager, blockLevels, kalturaManifest, relayKind, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
 
 test('relayKind picks which links the server has to pull', () => {
   assert.equal(relayKind('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'meter');
@@ -12,7 +12,8 @@ test('relayKind picks which links the server has to pull', () => {
   assert.equal(relayKind('https://x.com/i/broadcasts/1ZkJzbdvLgRJv'), 'play');
   assert.equal(relayKind('https://twitter.com/i/broadcasts/1ZkJzbdvLgRJv'), 'play');
   assert.equal(relayKind('https://example.com/live.m3u8'), null);
-  assert.equal(relayKind('kaltura:1/2/3'), null);
+  assert.equal(relayKind('kaltura:1/2/3'), 'meter');
+  assert.equal(relayKind('kaltura:not-a-shorthand'), null);
   assert.equal(relayKind('not a link'), null);
 });
 
@@ -41,6 +42,19 @@ test('YouTube channel links are pulled from their /live page', () => {
   assert.equal(ytdlpUrl('https://www.youtube.com/@NASA/streams'), 'https://www.youtube.com/@NASA/live');
   assert.equal(ytdlpUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   assert.equal(ytdlpUrl('https://x.com/i/broadcasts/1'), 'https://x.com/i/broadcasts/1');
+});
+
+test('Kaltura player links are metered from the entry HLS', () => {
+  const hls = 'https://cdnapisec.kaltura.com/p/123/sp/12300/playManifest/entryId/1_abc/format/applehttp/protocol/https/a.m3u8';
+  assert.equal(kalturaManifest('kaltura:123/456/1_abc'), hls);
+  assert.equal(kalturaManifest('https://cdnapisec.kaltura.com/p/123/embedPlaykitJs/uiconf_id/456?iframeembed=true&entry_id=1_abc'), hls);
+  assert.equal(kalturaManifest('https://cdnapisec.kaltura.com/p/123/sp/12300/embedIframeJs/uiconf_id/456/partner_id/123?iframeembed=true&entryId=1_abc'), hls);
+  assert.equal(kalturaManifest('https://cdnapisec.kaltura.com/p/123/embedPlaykitJs/uiconf_id/456'), null);
+  assert.equal(kalturaManifest('https://example.com/p/123?entry_id=1_abc'), null);
+  assert.equal(relayKind('kaltura:123/456/1_abc'), 'meter');
+  assert.equal(relayKind('https://cdnapisec.kaltura.com/p/123/embedPlaykitJs/uiconf_id/456?iframeembed=true&entry_id=1_abc'), 'meter');
+  assert.equal(relayKind(hls), null); // the browser plays Kaltura HLS itself
+  assert.equal(ytdlpUrl('kaltura:123/456/1_abc'), hls);
 });
 
 test('a relay pipes the stream through ffmpeg and reports live levels', async (t) => {
