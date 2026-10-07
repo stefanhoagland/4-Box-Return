@@ -11,7 +11,7 @@ The stream list and box layout are saved on the server in `/config/wall.json`.
 
 ### What each box can play
 
-- **YouTube**: video links (`watch?v=`, `youtu.be/`, `/live/`) and channel links (`/channel/UC…`, which play whatever that channel has live).
+- **YouTube**: video links (`watch?v=`, `youtu.be/`, `/live/`) and channel links (`/channel/UC…`, which play whatever that channel has live). Channel `@handle` links (`youtube.com/@name`) work too: when you save one on the admin page, the server looks up the channel and stores its `/channel/UC…/live` link instead.
 - **Facebook**: public video links, through Facebook's embedded video player.
 - **Kaltura**: a Player v7 iframe embed URL, the shorthand `kaltura:<partnerId>/<uiConfId>/<entryId>`, or an HLS `playManifest` URL.
 - **Any `.m3u8` HLS stream**: played with hls.js, with a real signal check. The box shows *Playing*, turns amber when video stops moving for 10 seconds, and red with *No signal* when the stream fails (it retries every 10 seconds).

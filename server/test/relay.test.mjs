@@ -3,7 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { RelayManager, blockLevels, relayKind, ytdlpArgs } from '../relay.mjs';
+import { RelayManager, blockLevels, relayKind, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
 
 test('relayKind picks which links the server has to pull', () => {
   assert.equal(relayKind('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'meter');
@@ -32,6 +32,15 @@ test('the stream link always comes after --, so it cannot be read as an option',
   const args = ytdlpArgs('--exec=rm -rf /', 'meter');
   assert.equal(args.at(-2), '--');
   assert.equal(args.at(-1), '--exec=rm -rf /');
+});
+
+test('YouTube channel links are pulled from their /live page', () => {
+  const id = 'UC1234567890abcdefghij_-';
+  assert.equal(ytdlpUrl(`https://www.youtube.com/channel/${id}`), `https://www.youtube.com/channel/${id}/live`);
+  assert.equal(ytdlpUrl(`https://www.youtube.com/channel/${id}/live`), `https://www.youtube.com/channel/${id}/live`);
+  assert.equal(ytdlpUrl('https://www.youtube.com/@NASA/streams'), 'https://www.youtube.com/@NASA/live');
+  assert.equal(ytdlpUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.equal(ytdlpUrl('https://x.com/i/broadcasts/1'), 'https://x.com/i/broadcasts/1');
 });
 
 test('a relay pipes the stream through ffmpeg and reports live levels', async (t) => {

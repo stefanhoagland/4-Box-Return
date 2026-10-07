@@ -50,10 +50,28 @@ export function blockLevels(buf) {
   return [db(l), db(r)];
 }
 
+// A bare YouTube channel link lists the channel's videos; /live is its current stream.
+export function ytdlpUrl(raw) {
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const isChannel = parts[0] === 'channel' || parts[0]?.startsWith('@') || parts[0] === 'c' || parts[0] === 'user';
+    if (host(u) === 'youtube.com' && isChannel && !parts.includes('live')) {
+      const base = parts[0].startsWith('@') ? parts.slice(0, 1) : parts.slice(0, 2);
+      u.pathname = `/${[...base, 'live'].join('/')}`;
+      u.search = '';
+      return u.toString();
+    }
+  } catch {
+    // Not a URL; hand it to yt-dlp unchanged.
+  }
+  return raw;
+}
+
 export function ytdlpArgs(url, kind) {
   // Metering only needs the audio, so take the smallest stream that has it.
   const format = kind === 'play' ? 'best[acodec!=none]/best' : 'bestaudio/worst[acodec!=none]/best';
-  return ['--quiet', '--no-warnings', '--no-part', '--js-runtimes', 'node', '-f', format, '-o', '-', '--', url];
+  return ['--quiet', '--no-warnings', '--no-part', '--js-runtimes', 'node', '-f', format, '-o', '-', '--', ytdlpUrl(url)];
 }
 
 export function ffmpegArgs(kind, hlsDir) {

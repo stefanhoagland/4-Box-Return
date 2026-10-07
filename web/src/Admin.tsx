@@ -68,8 +68,10 @@ export function Admin() {
     setSaveState('saving');
     const seq = ++saveSeq.current;
     saveWall(next)
-      .then(() => {
+      .then((saved) => {
         if (seq === saveSeq.current) {
+          // The server may rewrite links, e.g. YouTube @handles to channel links.
+          setWall(saved);
           setSaveState('saved');
           setError('');
         }

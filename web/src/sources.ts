@@ -61,7 +61,7 @@ export function youtubeEmbed(u: URL): Source | null {
     kind: 'unsupported',
     platform: 'youtube',
     openUrl,
-    reason: 'Use a video link (watch?v=…) or a channel ID link (/channel/UC…). @handles need the backend.',
+    reason: 'Save this @handle link on the admin page and the server will swap in the channel link. Or use a video link (watch?v=…) or a channel link (/channel/UC…).',
   };
 }
 
