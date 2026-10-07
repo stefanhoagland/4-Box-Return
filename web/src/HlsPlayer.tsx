@@ -7,6 +7,7 @@ export type HlsState = 'loading' | 'playing' | 'stalled' | 'error';
 interface Props {
   src: string;
   muted: boolean;
+  captions?: boolean;
   onState: (state: HlsState) => void;
   onAnalysers?: (analysers: StereoAnalysers | null) => void;
 }
@@ -15,14 +16,28 @@ interface Props {
 const elementSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
 
 const STALL_MS = 10_000;
+
+function showCaptions(video: HTMLVideoElement, hls: Hls | null, on: boolean) {
+  if (hls) {
+    hls.subtitleDisplay = on;
+    if (on && hls.subtitleTrack === -1 && hls.subtitleTracks.length) hls.subtitleTrack = 0;
+  }
+  const tracks = Array.from(video.textTracks).filter((t) => t.kind === 'captions' || t.kind === 'subtitles');
+  tracks.forEach((t, i) => {
+    t.mode = on && i === 0 ? 'showing' : on ? 'hidden' : 'disabled';
+  });
+}
 const RETRY_MS = 10_000;
 
 // Plays an HLS manifest and reports whether video is actually moving.
 // A stream whose playhead stops advancing for STALL_MS counts as stalled.
-export function HlsPlayer({ src, muted, onState, onAnalysers }: Props) {
+export function HlsPlayer({ src, muted, captions = false, onState, onAnalysers }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onStateRef = useRef(onState);
   onStateRef.current = onState;
+  const hlsRef = useRef<Hls | null>(null);
+  const captionsRef = useRef(captions);
+  captionsRef.current = captions;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -50,6 +65,9 @@ export function HlsPlayer({ src, muted, onState, onAnalysers }: Props) {
           hls = null;
           retryTimer = window.setTimeout(start, RETRY_MS);
         });
+        hls.subtitleDisplay = captionsRef.current;
+        hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => showCaptions(video, hls, captionsRef.current));
+        hlsRef.current = hls;
         hls.loadSource(src);
         hls.attachMedia(video);
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -79,10 +97,22 @@ export function HlsPlayer({ src, muted, onState, onAnalysers }: Props) {
       window.clearInterval(watchdog);
       window.clearTimeout(retryTimer);
       hls?.destroy();
+      hlsRef.current = null;
       video.removeAttribute('src');
       video.load();
     };
   }, [src]);
+
+  // Captions: HLS subtitle tracks and captions carried in the video (CEA-608)
+  // both arrive as text tracks on the video element.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    showCaptions(video, hlsRef.current, captions);
+    const onAdd = () => showCaptions(video, hlsRef.current, captionsRef.current);
+    video.textTracks.addEventListener('addtrack', onAdd);
+    return () => video.textTracks.removeEventListener('addtrack', onAdd);
+  }, [captions, src]);
 
   // Once audio is enabled the video's sound goes through Web Audio: a splitter
   // feeds the left/right meters, and a gain node does the muting so the meters

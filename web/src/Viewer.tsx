@@ -4,12 +4,33 @@ import { Tile } from './Tile';
 import { useClock } from './useClock';
 import { BOX_COUNT, emptyWall, followWall, streamInBox, type Levels, type RelayStatus, type Wall } from './wall';
 
+// Which streams have captions on, remembered in this browser by stream link.
+const CAPTIONS_KEY = '4br-captions';
+
+function loadCaptions(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(CAPTIONS_KEY) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCaptions(next: Record<string, boolean>): Record<string, boolean> {
+  try {
+    localStorage.setItem(CAPTIONS_KEY, JSON.stringify(next));
+  } catch {
+    // Private windows can refuse storage; captions then reset on reload.
+  }
+  return next;
+}
+
 // The wall screen: four boxes and a clock. Everything is set on the admin
 // page and arrives here live.
 export function Viewer() {
   const [wall, setWall] = useState<Wall>(emptyWall);
   const [online, setOnline] = useState(true);
   const [audioBox, setAudioBox] = useState<number | null>(null);
+  const [captions, setCaptions] = useState<Record<string, boolean>>(loadCaptions);
   const [levels, setLevels] = useState<Record<number, Levels | null>>({});
   const [relays, setRelays] = useState<Record<number, RelayStatus | null>>({});
   const now = useClock();
@@ -69,6 +90,8 @@ export function Viewer() {
               serverLevels={levels[i] ?? null}
               relay={relays[i] ?? null}
               onToggleAudio={() => setAudioBox((a) => (a === i ? null : i))}
+              captions={!!stream && !!captions[stream.url]}
+              onToggleCaptions={() => stream && setCaptions((c) => saveCaptions({ ...c, [stream.url]: !c[stream.url] }))}
             />
           );
         })}

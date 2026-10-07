@@ -17,7 +17,7 @@ The stream list and box layout are saved on the server in `/config/wall.json`.
 - **Any `.m3u8` HLS stream**: played with hls.js, with a real signal check. The box shows *Playing*, turns amber when video stops moving for 10 seconds, and red with *No signal* when the stream fails (it retries every 10 seconds).
 - **X**: live broadcasts cannot be embedded, so the server pulls them (see *Server relay*) and the box plays them as HLS.
 
-Every box starts muted; press the speaker on one box to listen to it. Double-click the top bar for full screen.
+Every box starts muted; press the speaker on one box to listen to it. Press **CC** to turn captions on or off for that stream (YouTube embeds and HLS streams that carry captions or subtitles); the viewer remembers the choice per stream in that browser. Double-click the top bar for full screen.
 
 ### Audio meters
 

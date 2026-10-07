@@ -12,6 +12,8 @@ interface Props {
   url: string;
   muted: boolean;
   onToggleAudio: () => void;
+  captions?: boolean;
+  onToggleCaptions?: () => void;
   // From the server relay, for links the browser cannot read itself.
   serverLevels?: Levels | null;
   relay?: RelayStatus | null;
@@ -30,7 +32,17 @@ const STATUS_TEXT: Record<Status, string> = {
   offline: 'Off air',
 };
 
-export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = null, relay = null }: Props) {
+export function Tile({
+  index,
+  label,
+  url,
+  muted,
+  onToggleAudio,
+  captions = false,
+  onToggleCaptions,
+  serverLevels = null,
+  relay = null,
+}: Props) {
   const parsed = useMemo(() => parseSource(url), [url]);
   // X broadcasts cannot be embedded; once the server relay has them, they play as HLS.
   const relayHls = relay?.kind === 'play' && relay.state === 'running' ? relay.hls : undefined;
@@ -52,13 +64,27 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
   const iframeSrc =
     source.kind === 'iframe' ? source.embedUrl(isYoutube ? true : muted) : undefined;
 
+  const ytCommand = (func: string, args: unknown[] = []) =>
+    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
+
   useEffect(() => {
-    if (!isYoutube) return;
-    frameRef.current?.contentWindow?.postMessage(
-      JSON.stringify({ event: 'command', func: muted ? 'mute' : 'unMute', args: [] }),
-      'https://www.youtube.com',
-    );
+    if (isYoutube) ytCommand(muted ? 'mute' : 'unMute');
   }, [muted, isYoutube]);
+
+  // YouTube captions are switched by loading or unloading the player's captions module.
+  const ytCaptions = () => ytCommand(captions ? 'loadModule' : 'unloadModule', ['captions']);
+  useEffect(() => {
+    if (isYoutube) ytCaptions();
+  }, [captions, isYoutube]);
+  // The player ignores commands until it is ready, so repeat the setting after the frame loads.
+  const onFrameLoad = () => {
+    if (!isYoutube) return;
+    for (const ms of [1000, 3000, 8000]) window.setTimeout(() => {
+      ytCommand(muted ? 'mute' : 'unMute');
+      ytCaptions();
+    }, ms);
+  };
+  const canCaption = isYoutube || source.kind === 'hls';
 
   // After a stretch with no live video the box shows a slate instead.
   const offAirSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
@@ -106,6 +132,16 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
             {muted ? '🔇' : '🔊'}
           </button>
         )}
+        {canCaption && onToggleCaptions && (
+          <button
+            className="tile-cc-btn"
+            onClick={onToggleCaptions}
+            aria-pressed={captions}
+            title={captions ? 'Hide captions' : 'Show captions'}
+          >
+            CC
+          </button>
+        )}
         <button className="tile-fs-btn" onClick={toggleFullscreen} title="Full screen">
           ⛶
         </button>
@@ -119,6 +155,7 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
             className="player"
             src={iframeSrc}
             title={label}
+            onLoad={onFrameLoad}
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
           />
@@ -129,6 +166,7 @@ export function Tile({ index, label, url, muted, onToggleAudio, serverLevels = n
           <HlsPlayer
             src={source.manifestUrl}
             muted={muted}
+            captions={captions}
             onState={setHlsState}
             onAnalysers={setAnalysers}
           />
