@@ -4,7 +4,7 @@ import type { Source } from './sources';
 import type { RelayStatus } from './wall';
 
 // How long a box can go without live video before it shows the platform slate.
-export const SLATE_AFTER_MS = 5 * 60_000;
+export const SLATE_AFTER_MS = 30_000;
 
 // Whether a box has live video right now: true, false, or null when the page
 // cannot tell (an embed the server is not relaying, or an empty box).
