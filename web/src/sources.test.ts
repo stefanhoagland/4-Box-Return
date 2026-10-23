@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSource } from './sources';
+import { isFacebookPage, parseSource } from './sources';
 
 const embed = (raw: string, muted = true) => {
   const s = parseSource(raw);
@@ -71,5 +71,22 @@ describe('parseSource', () => {
 
   it('falls back to a plain iframe for other links', () => {
     expect(embed('https://example.com/player')).toBe('https://example.com/player');
+  });
+});
+
+describe('isFacebookPage', () => {
+  it('spots page links, which the server turns into the live video', () => {
+    expect(isFacebookPage('https://www.facebook.com/libertyuniversity')).toBe(true);
+    expect(isFacebookPage('facebook.com/NASA/live')).toBe(true);
+    expect(isFacebookPage('https://m.facebook.com/NASA/videos')).toBe(true);
+    expect(isFacebookPage('https://www.facebook.com/profile.php?id=100064')).toBe(true);
+  });
+
+  it('leaves video and post links alone', () => {
+    expect(isFacebookPage('https://www.facebook.com/NASA/videos/1234567890/')).toBe(false);
+    expect(isFacebookPage('https://www.facebook.com/watch/?v=1234567890')).toBe(false);
+    expect(isFacebookPage('https://www.facebook.com/reel/123')).toBe(false);
+    expect(isFacebookPage('https://fb.watch/abc/')).toBe(false);
+    expect(isFacebookPage('https://www.youtube.com/@NASA')).toBe(false);
   });
 });

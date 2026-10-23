@@ -13,6 +13,7 @@ The stream list and box layout are saved on the server in `/config/wall.json`.
 
 - **YouTube**: video links (`watch?v=`, `youtu.be/`, `/live/`) and channel links (`/channel/UC…`, which play whatever that channel has live). Channel `@handle` links (`youtube.com/@name`) work too: when you save one on the admin page, the server looks up the channel and stores its `/channel/UC…/live` link instead.
 - **Facebook**: public video links, through Facebook's embedded video player.
+- **Facebook page links** (`facebook.com/<page>`, `/<page>/live`, `/<page>/videos`, `profile.php?id=…`): the server checks the page every minute and plays its live video in the box as soon as it goes live. While the page is not live, the box shows the Facebook slate straight away. Needs the server relay.
 - **Kaltura**: a Player v7 iframe embed URL, the shorthand `kaltura:<partnerId>/<uiConfId>/<entryId>`, or an HLS `playManifest` URL.
 - **Any `.m3u8` HLS stream**: played with hls.js, with a real signal check. The box shows *Playing*, turns amber when video stops moving for 10 seconds, and red with *No signal* when the stream fails (it retries every 10 seconds).
 - **X**: live broadcasts cannot be embedded, so the server pulls them (see *Server relay*) and the box plays them as HLS.
