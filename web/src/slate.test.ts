@@ -28,6 +28,12 @@ describe('hasLiveVideo', () => {
     expect(hasLiveVideo(kaltura, 'loading', { state: 'running', kind: 'meter', message: '' })).toBe(true);
   });
 
+  it('does not call a Kaltura site off air when the site check failed', () => {
+    const site = parseSource('https://watch.liberty.edu/');
+    expect(hasLiveVideo(site, 'loading', { state: 'error', kind: 'follow', message: 'timeout' })).toBe(null);
+    expect(hasLiveVideo(site, 'loading', { state: 'offline', kind: 'follow', message: 'Nothing live' })).toBe(false);
+  });
+
   it('cannot tell for embeds the server is not pulling', () => {
     expect(hasLiveVideo(youtube, 'loading', null)).toBe(null);
     expect(hasLiveVideo(kaltura, 'loading', null)).toBe(null);
