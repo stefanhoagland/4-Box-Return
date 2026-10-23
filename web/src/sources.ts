@@ -65,6 +65,27 @@ export function youtubeEmbed(u: URL): Source | null {
   };
 }
 
+// Facebook's own sections, which are not pages.
+const FB_NOT_PAGES = new Set([
+  'watch', 'video.php', 'videos', 'reel', 'reels', 'events', 'groups', 'story.php', 'permalink.php',
+  'photo.php', 'photo', 'photos', 'plugins', 'share', 'live', 'gaming', 'hashtag', 'login', 'login.php',
+  'marketplace', 'people', 'search', 'pages', 'help', 'policies', 'stories', 'posts', 'notes', 'media',
+]);
+const FB_PAGE_TABS = new Set(['live', 'live_videos', 'videos', 'streams']);
+
+// A link to a Facebook page (not a video). The server finds the page's live video.
+// Matches facebookPageLive in server/facebook.mjs.
+export function isFacebookPage(raw: string): boolean {
+  const u = tryUrl(raw.trim());
+  if (!u || u.hostname.replace(/^(www|m|mobile|web)\./, '').toLowerCase() !== 'facebook.com') return false;
+  const parts = u.pathname.split('/').filter(Boolean);
+  let page: string | null = null;
+  if (parts[0] === 'profile.php' && parts.length === 1) page = u.searchParams.get('id');
+  else if (parts[0] === 'pg' && parts.length <= 3 && (parts.length < 3 || FB_PAGE_TABS.has(parts[2]))) page = parts[1] ?? null;
+  else if (parts.length === 1 || (parts.length === 2 && FB_PAGE_TABS.has(parts[1]))) page = parts[0];
+  return !!page && !FB_NOT_PAGES.has(page.toLowerCase()) && /^[\w.-]{1,100}$/.test(page);
+}
+
 export function facebookEmbed(u: URL): Source | null {
   const h = host(u);
   if (h !== 'facebook.com' && h !== 'fb.watch') return null;

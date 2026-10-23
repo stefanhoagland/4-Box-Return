@@ -43,10 +43,13 @@ export async function saveWall(wall: Wall): Promise<Wall> {
 export type Levels = [number, number];
 
 export interface RelayStatus {
-  state: 'starting' | 'running' | 'error';
+  state: 'starting' | 'running' | 'error' | 'offline';
   kind: 'meter' | 'play';
   message: string;
   hls?: string;
+  // Facebook page links: the page's current live video, and when it went off air.
+  liveUrl?: string;
+  since?: number;
 }
 
 export interface WallFollower {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAudioEnabled, type StereoAnalysers } from './audio';
 import { HlsPlayer, type HlsState } from './HlsPlayer';
 import { Meter } from './Meter';
-import { PLATFORM_LABEL, parseSource } from './sources';
+import { PLATFORM_LABEL, facebookEmbed, isFacebookPage, parseSource, type Source } from './sources';
 import { hasLiveVideo, useNoVideo } from './slate';
 import type { Levels, RelayStatus } from './wall';
 
@@ -65,13 +65,19 @@ export function Tile({
   const parsed = useMemo(() => parseSource(url), [url]);
   // X broadcasts cannot be embedded; once the server relay has them, they play as HLS.
   const relayHls = relay?.kind === 'play' && relay.state === 'running' ? relay.hls : undefined;
-  const source = useMemo(
-    () =>
-      relayHls && parsed.kind === 'unsupported'
-        ? { kind: 'hls' as const, platform: parsed.platform, manifestUrl: relayHls, openUrl: parsed.openUrl }
-        : parsed,
-    [parsed, relayHls],
-  );
+  // A Facebook page link plays the page's live video once the server has found it.
+  const fbPage = useMemo(() => isFacebookPage(url), [url]);
+  const pageVideo = fbPage && relay?.state !== 'offline' ? relay?.liveUrl : undefined;
+  const source = useMemo((): Source => {
+    if (relayHls && parsed.kind === 'unsupported') {
+      return { kind: 'hls', platform: parsed.platform, manifestUrl: relayHls, openUrl: parsed.openUrl };
+    }
+    if (fbPage) {
+      const live = pageVideo ? facebookEmbed(new URL(pageVideo)) : null;
+      return live ?? { kind: 'unsupported', platform: 'facebook', openUrl: parsed.kind === 'empty' ? url : parsed.openUrl, reason: 'Checking whether this page is live…' };
+    }
+    return parsed;
+  }, [parsed, relayHls, fbPage, pageVideo, url]);
   const [hlsState, setHlsState] = useState<HlsState>('loading');
   const [analysers, setAnalysers] = useState<StereoAnalysers | null>(null);
   const audioEnabled = useAudioEnabled();
@@ -107,11 +113,15 @@ export function Tile({
   const canCaption = isYoutube || source.kind === 'hls';
 
   // After a stretch with no live video the box shows a slate instead.
-  const offAirSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
+  const noVideoSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
+  // A Facebook page the server found off air shows the slate straight away.
+  const offAirSince = fbPage && relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
 
   const status: Status = offAirSince !== null
     ? 'offline'
-    : source.kind === 'hls'
+    : fbPage && source.kind === 'unsupported'
+      ? 'loading'
+      : source.kind === 'hls'
       ? hlsState
       : source.kind === 'iframe'
         ? 'embed'
@@ -220,7 +230,11 @@ export function Tile({
                 ? 'Connecting through the server…'
                 : relay?.kind === 'play' && relay.state === 'error'
                   ? `Server could not pull this stream: ${relay.message}. Retrying.`
-                  : source.reason}
+                  : fbPage && relay?.state === 'error'
+                    ? `Could not check the page: ${relay.message}. Retrying.`
+                    : fbPage && !relay
+                      ? 'Facebook page links need the server relay to find the live video.'
+                      : source.reason}
             </p>
             <a href={source.openUrl} target="_blank" rel="noreferrer">
               Open stream in a new tab

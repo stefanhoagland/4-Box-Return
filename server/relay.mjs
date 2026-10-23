@@ -1,6 +1,6 @@
 // Server-side relay for streams the browser cannot read on its own.
 //
-// For each box showing a YouTube, Facebook or X link, the server runs
+// For each box showing a YouTube, Facebook (video or page) or X link, the server runs
 // yt-dlp (to fetch the stream) piped into ffmpeg, which
 //   - decodes the audio to 8 kHz stereo PCM so the server can measure
 //     left/right peak levels and push them to viewers, and
@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { facebookPageLive, findFacebookLive } from './facebook.mjs';
 
 export const RELAY_DIR = path.join(os.tmpdir(), '4br-relay');
 const SAMPLE_RATE = 8000;
@@ -25,6 +26,7 @@ export const relayTimings = {
   healthyRunMs: 30_000, // a stream that played this long and dropped reconnects at once
   holdMs: 15_000, // while reconnecting, viewers keep the last state for this long
   watchdogMs: 5000,
+  pageCheckMs: 60_000, // how often a Facebook page that is not live is checked again
 };
 
 const host = (u) => u.hostname.replace(/^(www|m|mobile)\./, '').toLowerCase();
@@ -131,24 +133,55 @@ class Relay {
     this.backoff = 2000;
     this.stopped = false;
     this.status = { state: 'starting', kind, message: '' };
+    // A Facebook page link: the stream is whatever the page has live right now.
+    this.pageLive = kind === 'meter' ? facebookPageLive(url) : null;
+    this.liveUrl = null;
     void this.start();
   }
 
   setStatus(state, message = '') {
     this.status = { state, kind: this.kind, message, hls: this.kind === 'play' ? `/relay/${this.box}/index.m3u8` : undefined };
+    if (this.liveUrl) this.status.liveUrl = this.liveUrl;
+    if (state === 'offline') this.status.since = this.offlineSince;
     this.events.onStatus(this.box, this.status);
   }
 
   async start() {
     if (this.stopped) return;
     // During a quick reconnect after a good run, viewers keep seeing it as running.
-    if (!this.holding) this.setStatus('starting');
+    // A page that is off air stays off air on screen while it is checked again.
+    if (!this.holding && this.status.state !== 'offline') this.setStatus('starting');
     await rm(this.dir, { recursive: true, force: true });
     await mkdir(this.dir, { recursive: true });
     if (this.stopped) return;
 
+    if (this.pageLive) {
+      const find = this.tools.findLive ?? ((u) => findFacebookLive(u, this.tools.ytdlp));
+      let live = null;
+      try {
+        live = await find(this.pageLive);
+      } catch (err) {
+        console.warn(`Could not check ${this.pageLive}: ${err.message}`);
+      }
+      if (this.stopped) return;
+      if (!live) {
+        this.endHold();
+        this.liveUrl = null;
+        if (this.status.state !== 'offline') {
+          this.offlineSince = Date.now();
+          this.setStatus('offline', 'Page is not live');
+          this.events.onLevels(this.box, null);
+        }
+        this.retry = setTimeout(() => void this.start(), relayTimings.pageCheckMs);
+        return;
+      }
+      if (live !== this.liveUrl) console.log(`Box ${this.box + 1}: ${this.pageLive} is live at ${live}`);
+      this.liveUrl = live;
+      if (!this.holding) this.setStatus('starting');
+    }
+
     // yt-dlp keeps temporary fragment files in its working directory.
-    const dl = spawn(this.tools.ytdlp, ytdlpArgs(this.url, this.kind), {
+    const dl = spawn(this.tools.ytdlp, ytdlpArgs(this.liveUrl ?? this.url, this.kind), {
       cwd: this.dir,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -199,7 +232,8 @@ class Relay {
       if (this.stopped) return;
       const message = errText.trim().split('\n').pop() || 'Stream ended';
       const ranFor = liveSince ? Date.now() - liveSince : 0;
-      if (ranFor >= relayTimings.healthyRunMs) {
+      // A page link checks again straight away whether the page is still live.
+      if (ranFor >= relayTimings.healthyRunMs || (this.pageLive && liveSince)) {
         // Live streams drop now and then; reconnect at once and hide the blip.
         this.backoff = 2000;
         this.startHold(message);
