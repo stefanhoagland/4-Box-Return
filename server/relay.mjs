@@ -13,6 +13,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { facebookPageLive, findFacebookLive } from './facebook.mjs';
+import { findKalturaLive } from './kaltura.mjs';
 
 export const RELAY_DIR = path.join(os.tmpdir(), '4br-relay');
 const SAMPLE_RATE = 8000;
@@ -69,6 +70,9 @@ export function relayKind(raw) {
   if (['x.com', 'twitter.com'].includes(h)) return 'play';
   // Kaltura player embeds hide their audio; the server pulls the entry's HLS instead.
   if (h.endsWith('kaltura.com') && !/format\/applehttp/i.test(u.pathname) && kalturaManifest(u.toString())) return 'meter';
+  if (h.endsWith('kaltura.com')) return null;
+  // Any other web page may be a Kaltura MediaSpace site; the server checks it for a live stream.
+  if (u.protocol === 'https:' || u.protocol === 'http:') return 'follow';
   return null;
 }
 
@@ -274,6 +278,54 @@ class Relay {
   }
 }
 
+// Watches a web page for a live Kaltura stream (see kaltura.mjs). Pages that turn
+// out not to be Kaltura sites are left alone and checked again only now and then.
+class SiteFollower {
+  constructor(box, url, events, tools) {
+    Object.assign(this, { box, url, events, kind: 'follow' });
+    this.find = tools.findSiteLive ?? ((u) => findKalturaLive(u));
+    this.status = null;
+    this.stopped = false;
+    void this.check();
+  }
+
+  setStatus(status) {
+    this.status = status;
+    this.events.onStatus(this.box, status);
+  }
+
+  async check() {
+    if (this.stopped) return;
+    let next = relayTimings.pageCheckMs;
+    try {
+      const live = await this.find(this.url);
+      if (this.stopped) return;
+      if (live) {
+        if (this.status?.liveUrl !== live.manifest) console.log(`Box ${this.box + 1}: ${this.url} is live on Kaltura entry ${live.entry}`);
+        this.setStatus({ state: 'running', kind: 'follow', message: live.name || live.entry, liveUrl: live.manifest });
+      } else if (this.status?.state !== 'offline') {
+        this.setStatus({ state: 'offline', kind: 'follow', message: 'Nothing live', since: Date.now() });
+      }
+    } catch (err) {
+      if (this.stopped) return;
+      if (err.notKaltura) {
+        if (this.status) this.setStatus(null);
+        next = 10 * relayTimings.pageCheckMs;
+      } else {
+        console.warn(`Box ${this.box + 1}: could not check ${this.url}: ${err.message}`);
+        // Keep showing a stream that was live through a failed check.
+        if (this.status?.state !== 'running') this.setStatus({ state: 'error', kind: 'follow', message: err.message });
+      }
+    }
+    this.timer = setTimeout(() => void this.check(), next);
+  }
+
+  stop() {
+    this.stopped = true;
+    clearTimeout(this.timer);
+  }
+}
+
 // Keeps one relay per box in step with the wall.
 export class RelayManager {
   constructor(events, tools = { ytdlp: 'yt-dlp', ffmpeg: 'ffmpeg' }) {
@@ -294,13 +346,14 @@ export class RelayManager {
         this.events.onLevels(box, null);
         this.events.onStatus(box, null);
       }
-      if (kind) this.relays.set(box, new Relay(box, stream.url, kind, this.events, this.tools));
+      if (kind === 'follow') this.relays.set(box, new SiteFollower(box, stream.url, this.events, this.tools));
+      else if (kind) this.relays.set(box, new Relay(box, stream.url, kind, this.events, this.tools));
     });
   }
 
   statuses() {
     const out = {};
-    for (const [box, relay] of this.relays) out[box] = relay.status;
+    for (const [box, relay] of this.relays) if (relay.status) out[box] = relay.status;
     return out;
   }
 

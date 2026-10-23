@@ -44,10 +44,11 @@ export type Levels = [number, number];
 
 export interface RelayStatus {
   state: 'starting' | 'running' | 'error' | 'offline';
-  kind: 'meter' | 'play';
+  // follow: a web page the server watches for a live Kaltura stream.
+  kind: 'meter' | 'play' | 'follow';
   message: string;
   hls?: string;
-  // Facebook page links: the page's current live video, and when it went off air.
+  // Facebook pages and Kaltura sites: the live stream found, and when it went off air.
   liveUrl?: string;
   since?: number;
 }

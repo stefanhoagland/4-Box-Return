@@ -72,12 +72,19 @@ export function Tile({
     if (relayHls && parsed.kind === 'unsupported') {
       return { kind: 'hls', platform: parsed.platform, manifestUrl: relayHls, openUrl: parsed.openUrl };
     }
+    // A Kaltura site: the server found its live stream, or nothing is live.
+    if (relay?.kind === 'follow' && relay.state === 'running' && relay.liveUrl) {
+      return { kind: 'hls', platform: 'kaltura', manifestUrl: relay.liveUrl, openUrl: parsed.kind === 'empty' ? url : parsed.openUrl };
+    }
+    if (relay?.kind === 'follow' && relay.state === 'offline') {
+      return { kind: 'unsupported', platform: 'kaltura', openUrl: parsed.kind === 'empty' ? url : parsed.openUrl, reason: 'Nothing is live on this site.' };
+    }
     if (fbPage) {
       const live = pageVideo ? facebookEmbed(new URL(pageVideo)) : null;
       return live ?? { kind: 'unsupported', platform: 'facebook', openUrl: parsed.kind === 'empty' ? url : parsed.openUrl, reason: 'Checking whether this page is live…' };
     }
     return parsed;
-  }, [parsed, relayHls, fbPage, pageVideo, url]);
+  }, [parsed, relayHls, fbPage, pageVideo, url, relay]);
   const [hlsState, setHlsState] = useState<HlsState>('loading');
   const [analysers, setAnalysers] = useState<StereoAnalysers | null>(null);
   const audioEnabled = useAudioEnabled();
@@ -115,7 +122,7 @@ export function Tile({
   // After a stretch with no live video the box shows a slate instead.
   const noVideoSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
   // A Facebook page the server found off air shows the slate straight away.
-  const offAirSince = fbPage && relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
+  const offAirSince = (fbPage || relay?.kind === 'follow') && relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
 
   const status: Status = offAirSince !== null
     ? 'offline'
