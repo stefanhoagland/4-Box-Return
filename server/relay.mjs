@@ -76,6 +76,13 @@ export function relayKind(raw) {
   return null;
 }
 
+// yt-dlp errors that mean the stream is simply not live (as opposed to broken).
+const NOT_LIVE = /not currently live|is not live|isn't live|not live now|will begin|premieres? in|scheduled|has ended|stream (?:is )?over|no longer live|broadcast (?:has )?ended|not (?:yet )?started|is offline|went offline|upcoming/i;
+
+export function isNotLive(message) {
+  return NOT_LIVE.test(String(message));
+}
+
 // Peak level in dBFS of each channel in a block of interleaved s16le stereo.
 export function blockLevels(buf) {
   let l = 0;
@@ -244,7 +251,16 @@ class Relay {
         this.retry = setTimeout(() => void this.start(), 1000);
         return;
       }
-      if (!this.holding) {
+      const notLive = liveSince ? null : errText.split('\n').find(isNotLive);
+      if (notLive) {
+        // The site said plainly it is not live: show it off air now, not after a delay.
+        this.endHold();
+        if (this.status.state !== 'offline') {
+          this.offlineSince = Date.now();
+          this.setStatus('offline', notLive.trim());
+          this.events.onLevels(this.box, null);
+        }
+      } else if (!this.holding) {
         this.setStatus('error', message);
         this.events.onLevels(this.box, null);
       }

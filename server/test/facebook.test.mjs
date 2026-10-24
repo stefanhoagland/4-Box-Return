@@ -3,6 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { waitFor } from './wait.mjs';
 import { facebookPageLive, videoFromPage, ytdlpLiveVideo } from '../facebook.mjs';
 import { RelayManager, relayTimings } from '../relay.mjs';
 
@@ -73,7 +74,7 @@ test('a page box shows off air until the page goes live, then pulls the live vid
     { ytdlp: fake, ffmpeg: 'ffmpeg', findLive: async (page) => (++checks >= 3 && page === 'https://www.facebook.com/NASA/live' ? video : null) },
   );
   manager.sync({ streams: [{ id: 'a', name: 'FB page', url: 'https://www.facebook.com/NASA' }], boxes: ['a', null, null, null] });
-  await new Promise((r) => setTimeout(r, 2500));
+  await waitFor(() => statuses.some((s) => s.state === 'running'));
   manager.stopAll();
 
   const states = statuses.map((s) => s.state);

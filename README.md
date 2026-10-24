@@ -42,7 +42,7 @@ A relay that drops is retried after 2 seconds, then 4, 8 and so on, up to once a
 
 Sites change often and break `yt-dlp`, so the Docker image is rebuilt every Monday with the latest `yt-dlp`. Update the container to pick it up.
 
-After 30 seconds without live video a box shows a slate with its platform name and the time it went off air. HLS boxes use the player itself; YouTube, Facebook, X and Kaltura embed boxes use the server relay (no relay, no slate). A Kaltura entry that refuses the server (needs a login) gets no slate rather than a false one.
+When the server is told plainly that a stream is not live (for example YouTube's "channel is not currently live"), the box shows the slate straight away. Otherwise, after 30 seconds without live video a box shows a slate with its platform name and the time it went off air. HLS boxes use the player itself; YouTube, Facebook, X and Kaltura embed boxes use the server relay (no relay, no slate). A Kaltura entry that refuses the server (needs a login) gets no slate rather than a false one.
 
 Embedded players (YouTube, Facebook, Kaltura iframe) only show *Embed* as their status: the page cannot see inside them. Real live status for those arrives in Phase 2.
 
