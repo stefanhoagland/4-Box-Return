@@ -3,6 +3,7 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { waitFor } from './wait.mjs';
 import { RelayManager, blockLevels, kalturaManifest, relayKind, relayTimings, ytdlpArgs, ytdlpUrl } from '../relay.mjs';
 
 test('relayKind picks which links the server has to pull', () => {
@@ -79,7 +80,7 @@ test('a relay pipes the stream through ffmpeg and reports live levels', async (t
     streams: [{ id: 'a', name: 'YT', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }],
     boxes: [null, 'a', null, null],
   });
-  await new Promise((r) => setTimeout(r, 2500));
+  await waitFor(() => statuses.includes('running') && levels.length >= 12);
   manager.stopAll();
 
   assert.ok(statuses.includes('running'), `statuses: ${statuses}`);
@@ -115,7 +116,8 @@ test('a relay that goes quiet is restarted, and a quick reconnect after a good r
     { ytdlp: fake, ffmpeg: 'ffmpeg' },
   );
   manager.sync({ streams: [{ id: 'a', name: 'FB', url: 'https://www.facebook.com/x/videos/1/' }], boxes: ['a', null, null, null] });
-  await new Promise((r) => setTimeout(r, 5000));
+  await waitFor(() => events.filter((e) => e === 'running').length >= 2);
+  await new Promise((r) => setTimeout(r, 300));
   manager.stopAll();
 
   const starts = events.filter((e) => e === 'starting').length;
@@ -123,4 +125,32 @@ test('a relay that goes quiet is restarted, and a quick reconnect after a good r
   assert.equal(starts, 1, `the reconnect is not announced: ${events.join(' ')}`);
   assert.ok(runs >= 2, `it came back after the stall: ${events.join(' ')}`);
   assert.ok(!events.includes('error') && !events.includes('null'), `viewers saw no drop: ${events.join(' ')}`);
+});
+
+test('isNotLive spots yt-dlp saying a stream is simply not live', async () => {
+  const { isNotLive } = await import('../relay.mjs');
+  assert.ok(isNotLive('ERROR: [youtube:tab] UCzibtqE6MFp4Z2gxi2_Acjw: The channel is not currently live'));
+  assert.ok(isNotLive('ERROR: [youtube] abc: This live event will begin in 3 hours.'));
+  assert.ok(isNotLive('ERROR: [youtube] abc: Premieres in 20 minutes'));
+  assert.ok(isNotLive('ERROR: [twitter:broadcast] 1ABC: Broadcast has ended'));
+  assert.ok(!isNotLive('ERROR: unable to download video data: HTTP Error 403: Forbidden'));
+  assert.ok(!isNotLive('No audio for 21 s'));
+});
+
+test('a channel that is not live goes off air at once, without flicker', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'fbr-offline-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const fake = path.join(dir, 'fake-ytdlp');
+  await writeFile(fake, '#!/bin/sh\necho "ERROR: [youtube:tab] UC1: The channel is not currently live" >&2\nexit 1\n');
+  await chmod(fake, 0o755);
+  const statuses = [];
+  const manager = new RelayManager(
+    { onLevels: () => undefined, onStatus: (box, s) => s && statuses.push(s.state) },
+    { ytdlp: fake, ffmpeg: 'ffmpeg' },
+  );
+  manager.sync({ streams: [{ id: 'a', name: 'YT', url: 'https://www.youtube.com/channel/UC1234567890abcdefghij_-/live' }], boxes: ['a', null, null, null] });
+  await waitFor(() => statuses.includes('offline'));
+  await new Promise((r) => setTimeout(r, 2500)); // the retry that follows must not flicker
+  manager.stopAll();
+  assert.deepEqual(statuses, ['starting', 'offline'], statuses.join(' '));
 });

@@ -121,8 +121,8 @@ export function Tile({
 
   // After a stretch with no live video the box shows a slate instead.
   const noVideoSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
-  // A Facebook page the server found off air shows the slate straight away.
-  const offAirSince = (fbPage || relay?.kind === 'follow') && relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
+  // A stream the server found plainly off air shows the slate straight away.
+  const offAirSince = relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
 
   const status: Status = offAirSince !== null
     ? 'offline'

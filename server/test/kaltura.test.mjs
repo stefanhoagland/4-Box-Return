@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { waitFor } from './wait.mjs';
 import { findKalturaLive, manifestFor, readKalturaSite } from '../kaltura.mjs';
 import { RelayManager, relayKind, relayTimings } from '../relay.mjs';
 
@@ -88,7 +89,7 @@ test('a site box goes from off air to the live stream and back', async (t) => {
     { ytdlp: 'yt-dlp', ffmpeg: 'ffmpeg', findSiteLive: async () => answers[Math.min(i++, answers.length - 1)] },
   );
   manager.sync({ streams: [{ id: 'k', name: 'K', url: 'https://watch.example.edu/' }], boxes: [null, null, 'k', null] });
-  await new Promise((r) => setTimeout(r, 700));
+  await waitFor(() => statuses.filter((s) => s?.state === 'offline').length >= 2, 5000);
   manager.stopAll();
   const states = statuses.map((s) => s?.state);
   assert.deepEqual(states.slice(0, 3), ['offline', 'running', 'running'], states.join(' '));
