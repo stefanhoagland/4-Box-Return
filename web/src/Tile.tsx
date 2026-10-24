@@ -120,7 +120,12 @@ export function Tile({
   const canCaption = isYoutube || source.kind === 'hls';
 
   // After a stretch with no live video the box shows a slate instead.
-  const noVideoSince = useNoVideo(hasLiveVideo(source, hlsState, relay), url);
+  const noVideoSince = useNoVideo(
+    hasLiveVideo(source, hlsState, relay),
+    url,
+    undefined,
+    relay && relay.state !== 'running' ? relay.since : undefined,
+  );
   // A stream the server found plainly off air shows the slate straight away.
   const offAirSince = relay?.state === 'offline' ? (relay.since ?? Date.now()) : noVideoSince;
 
