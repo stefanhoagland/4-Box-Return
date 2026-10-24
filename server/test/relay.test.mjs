@@ -154,3 +154,25 @@ test('a channel that is not live goes off air at once, without flicker', async (
   manager.stopAll();
   assert.deepEqual(statuses, ['starting', 'offline'], statuses.join(' '));
 });
+
+test('a failing stream keeps telling viewers when it went down', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'fbr-down-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const fake = path.join(dir, 'fake-ytdlp');
+  await writeFile(fake, '#!/bin/sh\necho "ERROR: Unsupported URL" >&2\nexit 1\n');
+  await chmod(fake, 0o755);
+  const statuses = [];
+  const before = Date.now();
+  const manager = new RelayManager(
+    { onLevels: () => undefined, onStatus: (box, s) => s && statuses.push(s) },
+    { ytdlp: fake, ffmpeg: 'ffmpeg' },
+  );
+  manager.sync({ streams: [{ id: 'a', name: 'X', url: 'https://x.com/LibertyU' }], boxes: [null, null, null, 'a'] });
+  await waitFor(() => statuses.filter((s) => s.state === 'error').length >= 2);
+  manager.stopAll();
+  const sinces = new Set(statuses.map((s) => s.since));
+  assert.equal(sinces.size, 1, `one start time through retries: ${statuses.map((s) => `${s.state}@${s.since}`).join(' ')}`);
+  assert.ok([...sinces][0] >= before && [...sinces][0] <= Date.now());
+  assert.ok(statuses.filter((s) => s.state === 'error').length >= 2);
+  assert.equal(manager.statuses()[3], undefined); // stopped
+});

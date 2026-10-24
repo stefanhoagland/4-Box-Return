@@ -143,7 +143,8 @@ class Relay {
     this.dir = path.join(RELAY_DIR, String(box));
     this.backoff = 2000;
     this.stopped = false;
-    this.status = { state: 'starting', kind, message: '' };
+    this.downSince = Date.now(); // when the stream was last seen working (or the box was set up)
+    this.status = { state: 'starting', kind, message: '', since: this.downSince };
     // A Facebook page link: the stream is whatever the page has live right now.
     this.pageLive = kind === 'meter' ? facebookPageLive(url) : null;
     this.liveUrl = null;
@@ -153,7 +154,9 @@ class Relay {
   setStatus(state, message = '') {
     this.status = { state, kind: this.kind, message, hls: this.kind === 'play' ? `/relay/${this.box}/index.m3u8` : undefined };
     if (this.liveUrl) this.status.liveUrl = this.liveUrl;
-    if (state === 'offline') this.status.since = this.offlineSince;
+    // Viewers that load the page later still know how long the stream has been down.
+    if (state === 'running') this.downSince = null;
+    else this.status.since = this.downSince ??= Date.now();
     this.events.onStatus(this.box, this.status);
   }
 
@@ -179,7 +182,6 @@ class Relay {
         this.endHold();
         this.liveUrl = null;
         if (this.status.state !== 'offline') {
-          this.offlineSince = Date.now();
           this.setStatus('offline', 'Page is not live');
           this.events.onLevels(this.box, null);
         }
@@ -256,7 +258,6 @@ class Relay {
         // The site said plainly it is not live: show it off air now, not after a delay.
         this.endHold();
         if (this.status.state !== 'offline') {
-          this.offlineSince = Date.now();
           this.setStatus('offline', notLive.trim());
           this.events.onLevels(this.box, null);
         }
@@ -301,11 +302,14 @@ class SiteFollower {
     Object.assign(this, { box, url, events, kind: 'follow' });
     this.find = tools.findSiteLive ?? ((u) => findKalturaLive(u));
     this.status = null;
+    this.downSince = Date.now();
     this.stopped = false;
     void this.check();
   }
 
   setStatus(status) {
+    if (status?.state === 'running') this.downSince = null;
+    else if (status) status.since = this.downSince ??= Date.now();
     this.status = status;
     this.events.onStatus(this.box, status);
   }
@@ -320,7 +324,7 @@ class SiteFollower {
         if (this.status?.liveUrl !== live.manifest) console.log(`Box ${this.box + 1}: ${this.url} is live on Kaltura entry ${live.entry}`);
         this.setStatus({ state: 'running', kind: 'follow', message: live.name || live.entry, liveUrl: live.manifest });
       } else if (this.status?.state !== 'offline') {
-        this.setStatus({ state: 'offline', kind: 'follow', message: 'Nothing live', since: Date.now() });
+        this.setStatus({ state: 'offline', kind: 'follow', message: 'Nothing live' });
       }
     } catch (err) {
       if (this.stopped) return;

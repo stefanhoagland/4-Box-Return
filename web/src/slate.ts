@@ -23,16 +23,17 @@ export function hasLiveVideo(source: Source, hlsState: HlsState, relay: RelaySta
 }
 
 // True once `live` has been false for SLATE_AFTER_MS without a break. Starts
-// over when `key` (the box's link) changes.
-export function useNoVideo(live: boolean | null, key: string, afterMs = SLATE_AFTER_MS): number | null {
+// over when `key` (the box's link) changes. `downSince` is when the server
+// last saw the stream working, so a freshly loaded page need not wait again.
+export function useNoVideo(live: boolean | null, key: string, afterMs = SLATE_AFTER_MS, downSince?: number): number | null {
   const [since, setSince] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => setSince(null), [key]);
   useEffect(() => {
-    if (live === false) setSince((s) => s ?? Date.now());
+    if (live === false) setSince((s) => Math.min(s ?? Date.now(), downSince ?? Date.now()));
     else setSince(null);
-  }, [live, key]);
+  }, [live, key, downSince]);
   useEffect(() => {
     if (since === null) return;
     setNow(Date.now());
