@@ -96,3 +96,32 @@ test('a site box goes from off air to the live stream and back', async (t) => {
   assert.equal(statuses[1].liveUrl, 'https://k/a.m3u8');
   assert.equal(states[3], 'offline');
 });
+
+test('a site that fails after one good read still gets checked', async () => {
+  let siteUp = true;
+  const answers = { 'session.startWidgetSession': { ks: 'KS' }, 'livestream.list': { objects: [{ id: '1_live5678', name: 'Chapel' }] } };
+  const good = fakeFetch(answers);
+  const f = async (url, opts) => {
+    if (String(url) === 'https://cache.example.edu/') {
+      if (!siteUp) return new Response('oops', { status: 500 });
+      return new Response(SITE);
+    }
+    return good(url, opts);
+  };
+  assert.equal((await findKalturaLive('https://cache.example.edu/', f)).entry, '1_live5678');
+  siteUp = false;
+  assert.equal((await findKalturaLive('https://cache.example.edu/', f)).entry, '1_live5678');
+  await assert.rejects(findKalturaLive('https://never-read.example.edu/', async () => new Response('x', { status: 500 })), /answered 500/);
+});
+
+test('findKalturaLive asks each stream when the live list comes back empty', async () => {
+  const f = fakeFetch({
+    'session.startWidgetSession': { ks: 'KS' },
+    'livestream.list': (u) => (u.includes('isLive') ? { objects: [], totalCount: 0 } : { objects: [{ id: '0_aaaa1111', name: 'Old' }, { id: '0_bbbb2222', name: 'Convocation' }] }),
+    'baseentry.list': { objects: [] },
+    'livestream.isLive': (u) => (u.includes('0_bbbb2222') ? 'true' : 'false'),
+  });
+  const live = await findKalturaLive('https://watch.example.edu/', f);
+  assert.equal(live.entry, '0_bbbb2222');
+  assert.equal(live.name, 'Convocation');
+});
