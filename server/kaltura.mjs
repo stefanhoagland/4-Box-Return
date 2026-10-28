@@ -52,16 +52,33 @@ async function manifestIsLive(url, fetchImpl) {
   }
 }
 
+// What each site said last time, so a slow or failing site does not stop the check.
+const siteCache = new Map();
+
+async function readSite(siteUrl, fetchImpl) {
+  try {
+    const res = await fetchImpl(siteUrl, {
+      // A plain agent: a browser one without a browser behind it can upset the site's bot guard.
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; 4-Box-Return)' },
+      // MediaSpace pages can be slow to build while an event is live.
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!res.ok) throw new Error(`${new URL(siteUrl).hostname} answered ${res.status}`);
+    const site = readKalturaSite(await res.text());
+    if (!site) throw Object.assign(new Error('No Kaltura player on this page'), { notKaltura: true });
+    siteCache.set(siteUrl, site);
+    return site;
+  } catch (err) {
+    const cached = siteCache.get(siteUrl);
+    if (cached && !err.notKaltura) return cached;
+    throw err;
+  }
+}
+
 // Which entry of the site is live now: { partner, entry, name, manifest } or
 // null. Throws { notKaltura: true } when the page is not a Kaltura site.
 export async function findKalturaLive(siteUrl, fetchImpl = fetch) {
-  const res = await fetchImpl(siteUrl, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36' },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) throw new Error(`${new URL(siteUrl).hostname} answered ${res.status}`);
-  const site = readKalturaSite(await res.text());
-  if (!site) throw Object.assign(new Error('No Kaltura player on this page'), { notKaltura: true });
+  const site = await readSite(siteUrl, fetchImpl);
   const { partner, entries } = site;
   const found = (entry, name = '') => ({ partner, entry, name, manifest: manifestFor(partner, entry) });
 
@@ -73,6 +90,10 @@ export async function findKalturaLive(siteUrl, fetchImpl = fetch) {
     console.warn(`Kaltura ${partner}: no player session (${err.message})`);
   }
   if (ks) {
+    // Kaltura's "live now" list is the quick answer, but it can come back empty
+    // while a stream is live, so each live-stream entry is also asked in turn.
+    const candidates = [];
+    const add = (e) => e?.id && !candidates.some((c) => c.id === e.id) && candidates.push(e);
     try {
       const list = await api('livestream', 'list', {
         ks,
@@ -83,24 +104,37 @@ export async function findKalturaLive(siteUrl, fetchImpl = fetch) {
       const live = list.objects ?? [];
       const pick = live.find((e) => entries.includes(e.id)) ?? live[0];
       if (pick) return found(pick.id, pick.name);
-      if (Array.isArray(list.objects)) return null; // Kaltura answered: nothing live
     } catch (err) {
-      console.warn(`Kaltura ${partner}: could not list live streams (${err.message}); checking the site's entries`);
+      console.warn(`Kaltura ${partner}: could not list live streams (${err.message})`);
     }
     try {
-      const list = await api('baseentry', 'list', {
-        ks,
-        'filter:idIn': entries.join(','),
-        'pager:pageSize': '100',
-      }, fetchImpl);
-      for (const e of (list.objects ?? []).filter((o) => Number(o.type) === LIVE_STREAM_TYPE)) {
-        const live = await api('livestream', 'isLive', { ks, id: e.id, protocol: 'applehttp' }, fetchImpl).catch(() => false);
-        if (live === true) return found(e.id, e.name);
-      }
-      return null;
+      const list = await api('baseentry', 'list', { ks, 'filter:idIn': entries.join(','), 'pager:pageSize': '100' }, fetchImpl);
+      (list.objects ?? []).filter((o) => Number(o.type) === LIVE_STREAM_TYPE).forEach(add);
     } catch (err) {
-      console.warn(`Kaltura ${partner}: could not read entries (${err.message}); checking stream links`);
+      console.warn(`Kaltura ${partner}: could not read the site's entries (${err.message})`);
     }
+    try {
+      const list = await api('livestream', 'list', {
+        ks,
+        'filter:objectType': 'KalturaLiveStreamEntryFilter',
+        'filter:orderBy': '-updatedAt',
+        'pager:pageSize': '30',
+      }, fetchImpl);
+      (list.objects ?? []).forEach(add);
+    } catch (err) {
+      console.warn(`Kaltura ${partner}: could not list streams (${err.message})`);
+    }
+    let answered = false;
+    for (const e of candidates) {
+      const live = await api('livestream', 'isLive', { ks, id: e.id, protocol: 'applehttp' }, fetchImpl).catch(() => null);
+      if (live === true) return found(e.id, e.name);
+      if (live === false) answered = true;
+    }
+    // If Kaltura would not say, try the streams themselves.
+    for (const e of answered ? [] : candidates) {
+      if (await manifestIsLive(manifestFor(partner, e.id), fetchImpl)) return found(e.id, e.name);
+    }
+    if (candidates.length) return null;
   }
 
   // Last resort: try each entry's stream link.
