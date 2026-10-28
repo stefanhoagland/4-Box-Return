@@ -128,7 +128,9 @@ export function ffmpegArgs(kind, hlsDir) {
   args.push('-map', '0:a:0?', '-ac', '2', '-ar', String(SAMPLE_RATE), '-f', 's16le', 'pipe:1');
   if (kind === 'play') {
     args.push(
-      '-map', '0:v:0?', '-map', '0:a:0?', '-c', 'copy',
+      // Video is passed through. Audio is re-encoded to plain AAC: X sends AAC in
+      // MPEG-TS framing, which the fMP4 segments cannot take as it is.
+      '-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
       '-f', 'hls', '-hls_time', '2', '-hls_list_size', '6', '-hls_segment_type', 'fmp4',
       '-hls_flags', 'delete_segments+omit_endlist+independent_segments',
       path.join(hlsDir, 'index.m3u8'),
