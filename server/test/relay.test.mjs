@@ -176,3 +176,33 @@ test('a failing stream keeps telling viewers when it went down', async (t) => {
   assert.ok(statuses.filter((s) => s.state === 'error').length >= 2);
   assert.equal(manager.statuses()[3], undefined); // stopped
 });
+
+test('an X stream (H.264 and AAC in MPEG-TS) is repackaged as HLS', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'fbr-x-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const fake = path.join(dir, 'fake-ytdlp');
+  await writeFile(
+    fake,
+    '#!/bin/sh\nexec ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc=size=160x120:rate=25 -f lavfi -i sine=f=440 -t 8 ' +
+      '-c:v libx264 -g 25 -c:a aac -f mpegts -\n',
+  );
+  await chmod(fake, 0o755);
+  const statuses = [];
+  const manager = new RelayManager(
+    { onLevels: () => undefined, onStatus: (box, s) => s && statuses.push(s) },
+    { ytdlp: fake, ffmpeg: 'ffmpeg' },
+  );
+  manager.sync({ streams: [{ id: 'x', name: 'X', url: 'https://x.com/i/broadcasts/1AKEmvENzLYKL' }], boxes: ['x', null, null, null] });
+  const { RELAY_DIR } = await import('../relay.mjs');
+  const { readdir } = await import('node:fs/promises');
+  const segments = async () => (await readdir(path.join(RELAY_DIR, '0')).catch(() => [])).filter((f) => f.endsWith('.m4s')).length;
+  let count = 0;
+  for (let i = 0; i < 150 && count < 2; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    count = await segments();
+  }
+  manager.stopAll();
+  assert.ok(statuses.some((s) => s.state === 'running'), statuses.map((s) => `${s.state}:${s.message}`).join(' '));
+  assert.ok(!statuses.some((s) => s.state === 'error'), statuses.map((s) => `${s.state}:${s.message}`).join(' '));
+  assert.ok(count >= 2, `segments written: ${count}`);
+});
